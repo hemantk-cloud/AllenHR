@@ -1,0 +1,9 @@
+
+{
+  "name": "AllenHR",
+  "description": "A comprehensive HR Management System for attendance tracking, leave management, and geolocation-based punch-in/out.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ]
+}

@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { Layout } from './components/Layout';
-import { Dashboard } from './components/Dashboard';
-import { AdminDashboard } from './components/AdminDashboard';
-import { PunchCard } from './components/PunchCard';
-import { LeaveTracker } from './components/LeaveTracker';
-import { AdminLeaves } from './components/AdminLeaves';
-import { Assistant } from './components/Assistant';
-import { AttendanceCalendar } from './components/AttendanceCalendar';
-import { AttendanceLog, LeaveRequest, User, UserRole } from './types';
+import { Layout } from './components/Layout.tsx';
+import { Dashboard } from './components/Dashboard.tsx';
+import { AdminDashboard } from './components/AdminDashboard.tsx';
+import { PunchCard } from './components/PunchCard.tsx';
+import { LeaveTracker } from './components/LeaveTracker.tsx';
+import { AdminLeaves } from './components/AdminLeaves.tsx';
+import { Assistant } from './components/Assistant.tsx';
+import { AttendanceCalendar } from './components/AttendanceCalendar.tsx';
+import { AttendanceLog, LeaveRequest, User, UserRole } from './types.ts';
 import { 
   LogIn, 
   Mail, 

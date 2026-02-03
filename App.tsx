@@ -9,15 +9,11 @@ import { Assistant } from './components/Assistant';
 import { AttendanceCalendar } from './components/AttendanceCalendar';
 import { AttendanceLog, LeaveRequest, User, UserRole } from './types';
 import { 
-  Camera, 
-  MapPin, 
   LogIn, 
   Mail, 
   Plus, 
   Edit2, 
   Trash2, 
-  X, 
-  Save, 
   AlertTriangle, 
   ShieldAlert 
 } from 'lucide-react';

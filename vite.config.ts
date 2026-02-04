@@ -4,25 +4,22 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Ensure process.env is available for the Gemini SDK
-    'process.env': process.env
+    // This is the critical fix for the blank screen on mobile
+    'process.env': {
+      API_KEY: JSON.stringify(process.env.API_KEY || '')
+    },
+    'global': {},
   },
   resolve: {
     extensions: ['.tsx', '.ts', '.jsx', '.js']
   },
   esbuild: {
-    // Explicitly tell esbuild to use the 'tsx' loader for these extensions
     loader: 'tsx',
     include: /.*\.(ts|tsx|jsx|js)$/,
   },
   build: {
     outDir: 'dist',
     target: 'esnext',
-    minify: 'esbuild',
-    rollupOptions: {
-      output: {
-        manualChunks: undefined
-      }
-    }
+    minify: 'esbuild'
   }
 });

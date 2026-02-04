@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { AdminDashboard } from './components/AdminDashboard';
@@ -16,7 +16,9 @@ import {
   Trash2, 
   AlertTriangle, 
   ShieldAlert,
-  Settings2
+  Settings2,
+  Download,
+  Smartphone
 } from 'lucide-react';
 
 const INITIAL_EMPLOYEES: User[] = [
@@ -65,6 +67,10 @@ const App: React.FC = () => {
   const [isPunching, setIsPunching] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
   // Admin UI States
   const [editingLog, setEditingLog] = useState<AttendanceLog | null>(null);
   const [isAddingManual, setIsAddingManual] = useState(false);
@@ -72,6 +78,30 @@ const App: React.FC = () => {
   const [editingEmployee, setEditingEmployee] = useState<User | null>(null);
   const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    });
+
+    window.addEventListener('appinstalled', () => {
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+      console.log('AllenHR was installed');
+    });
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,7 +162,6 @@ const App: React.FC = () => {
   const handleUpdateEmployee = (updatedEmp: User) => {
     setEmployees(employees.map(e => e.id === updatedEmp.id ? updatedEmp : e));
     setEditingEmployee(null);
-    // If updating current user, update local session too
     if (user && updatedEmp.id === user.id) {
       setUser(updatedEmp);
     }
@@ -165,7 +194,6 @@ const App: React.FC = () => {
     if (!request) return;
 
     if (status === 'approved') {
-      // Deduct leaves from employee balance
       const emp = employees.find(e => e.id === request.employeeId);
       if (emp) {
         const days = Math.ceil((new Date(request.endDate).getTime() - new Date(request.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -371,7 +399,6 @@ const App: React.FC = () => {
       }
     }
 
-    // Employee View
     switch (activeTab) {
       case 'dashboard':
         return (
@@ -392,11 +419,23 @@ const App: React.FC = () => {
         return <Assistant user={user} attendance={attendance.filter(a => a.employeeId === user.id)} />;
       case 'profile':
         return (
-          <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm max-w-2xl mx-auto text-center">
-             <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=4f46e5&color=fff`} className="w-32 h-32 rounded-full mx-auto mb-6 shadow-xl" alt="Profile" />
-             <h2 className="text-2xl font-bold text-slate-800">{user.name}</h2>
-             <p className="text-indigo-600 font-medium">{user.designation}</p>
-             <p className="text-sm text-slate-400">{user.department}</p>
+          <div className="space-y-6 max-w-2xl mx-auto">
+            <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm text-center">
+               <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=4f46e5&color=fff`} className="w-32 h-32 rounded-full mx-auto mb-6 shadow-xl" alt="Profile" />
+               <h2 className="text-2xl font-bold text-slate-800">{user.name}</h2>
+               <p className="text-indigo-600 font-medium">{user.designation}</p>
+               <p className="text-sm text-slate-400 mb-6">{user.department}</p>
+               
+               {showInstallBanner && (
+                 <button 
+                  onClick={handleInstallClick}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center space-x-3 transition-all shadow-lg"
+                 >
+                   <Download size={20} />
+                   <span>Download AllenHR Mobile App</span>
+                 </button>
+               )}
+            </div>
           </div>
         );
       default: return <Dashboard attendance={[]} leaveRequests={[]} />;
@@ -405,9 +444,31 @@ const App: React.FC = () => {
 
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={handleLogout}>
+      {/* PWA Floating Install Banner for Home Screen */}
+      {showInstallBanner && activeTab === 'dashboard' && (
+        <div className="fixed bottom-6 left-6 right-6 z-[100] md:left-auto md:w-96 animate-in slide-in-from-bottom duration-500">
+           <div className="bg-slate-900 text-white p-5 rounded-[2rem] shadow-2xl border border-white/10 flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                 <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center">
+                    <Smartphone size={24} />
+                 </div>
+                 <div>
+                    <p className="text-sm font-bold">Install AllenHR App</p>
+                    <p className="text-[10px] text-slate-400">Access features faster from home screen</p>
+                 </div>
+              </div>
+              <button 
+                onClick={handleInstallClick}
+                className="bg-white text-slate-900 text-xs font-black px-4 py-2 rounded-xl"
+              >
+                INSTALL
+              </button>
+           </div>
+        </div>
+      )}
+
       {renderContent()}
       
-      {/* Confirmation Modals */}
       {deletingLogId && (
         <ConfirmModal 
           title="Delete Attendance Entry" 
@@ -428,12 +489,11 @@ const App: React.FC = () => {
   );
 };
 
-// Helper Components
 const AddEmployeeModal: React.FC<{onSave: (emp: User) => void, onCancel: () => void}> = ({ onSave, onCancel }) => {
   const [data, setData] = useState({ name: '', email: '', role: 'employee' as UserRole, designation: '', department: '' });
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8">
+      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-md p-8">
         <h3 className="text-xl font-bold mb-6 text-slate-800">Register New Staff Member</h3>
         <form onSubmit={(e) => { e.preventDefault(); onSave({...data, id: 'EMP'+Date.now(), leaveBalance: { sick: 10, casual: 10, vacation: 15 }}); }} className="space-y-4">
           <input required placeholder="Full Name" className="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
@@ -481,7 +541,7 @@ const EditEmployeeModal: React.FC<{employee: User, onSave: (emp: User) => void, 
                 <label className="text-[10px] font-bold text-slate-500 ml-1">Sick</label>
                 <input 
                   type="number" 
-                  className="w-full p-3 bg-indigo-50/30 border border-indigo-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" 
+                  className="w-full p-3 bg-indigo-50/30 border border-indigo-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-900" 
                   value={data.leaveBalance.sick} 
                   onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, sick: parseInt(e.target.value) || 0}})} 
                 />
@@ -490,7 +550,7 @@ const EditEmployeeModal: React.FC<{employee: User, onSave: (emp: User) => void, 
                 <label className="text-[10px] font-bold text-slate-500 ml-1">Casual</label>
                 <input 
                   type="number" 
-                  className="w-full p-3 bg-indigo-50/30 border border-indigo-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" 
+                  className="w-full p-3 bg-indigo-50/30 border border-indigo-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-900" 
                   value={data.leaveBalance.casual} 
                   onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, casual: parseInt(e.target.value) || 0}})} 
                 />
@@ -499,12 +559,13 @@ const EditEmployeeModal: React.FC<{employee: User, onSave: (emp: User) => void, 
                 <label className="text-[10px] font-bold text-slate-500 ml-1">Vacation</label>
                 <input 
                   type="number" 
-                  className="w-full p-3 bg-indigo-50/30 border border-indigo-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" 
+                  className="w-full p-3 bg-indigo-50/30 border border-indigo-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-900" 
                   value={data.leaveBalance.vacation} 
                   onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, vacation: parseInt(e.target.value) || 0}})} 
                 />
               </div>
             </div>
+            <p className="text-[10px] text-slate-400 italic">* These values set the maximum days allowed for this employee per year.</p>
           </div>
 
           <div className="flex space-x-3 pt-4 border-t">

@@ -15,7 +15,8 @@ import {
   Edit2, 
   Trash2, 
   AlertTriangle, 
-  ShieldAlert 
+  ShieldAlert,
+  Settings2
 } from 'lucide-react';
 
 const INITIAL_EMPLOYEES: User[] = [
@@ -68,6 +69,7 @@ const App: React.FC = () => {
   const [editingLog, setEditingLog] = useState<AttendanceLog | null>(null);
   const [isAddingManual, setIsAddingManual] = useState(false);
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<User | null>(null);
   const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(null);
 
@@ -127,6 +129,15 @@ const App: React.FC = () => {
     setIsAddingEmployee(false);
   };
 
+  const handleUpdateEmployee = (updatedEmp: User) => {
+    setEmployees(employees.map(e => e.id === updatedEmp.id ? updatedEmp : e));
+    setEditingEmployee(null);
+    // If updating current user, update local session too
+    if (user && updatedEmp.id === user.id) {
+      setUser(updatedEmp);
+    }
+  };
+
   const handleDeleteEmployee = (id: string) => {
     setEmployees(employees.filter(e => e.id !== id));
     setDeletingEmployeeId(null);
@@ -150,6 +161,28 @@ const App: React.FC = () => {
   };
 
   const handleLeaveAction = (id: string, status: 'approved' | 'rejected') => {
+    const request = leaveRequests.find(r => r.id === id);
+    if (!request) return;
+
+    if (status === 'approved') {
+      // Deduct leaves from employee balance
+      const emp = employees.find(e => e.id === request.employeeId);
+      if (emp) {
+        const days = Math.ceil((new Date(request.endDate).getTime() - new Date(request.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const type = request.type as keyof typeof emp.leaveBalance;
+        if (emp.leaveBalance[type] !== undefined) {
+          const updatedEmp = {
+            ...emp,
+            leaveBalance: {
+              ...emp.leaveBalance,
+              [type]: Math.max(0, emp.leaveBalance[type] - days)
+            }
+          };
+          handleUpdateEmployee(updatedEmp);
+        }
+      }
+    }
+
     setLeaveRequests(prev => prev.map(req => req.id === id ? { ...req, status } : req));
   };
 
@@ -227,6 +260,7 @@ const App: React.FC = () => {
                       <th className="px-4 py-4">Designation</th>
                       <th className="px-4 py-4">Dept</th>
                       <th className="px-4 py-4">Role</th>
+                      <th className="px-4 py-4">Leaves</th>
                       <th className="px-4 py-4 text-center">Actions</th>
                     </tr>
                   </thead>
@@ -244,14 +278,27 @@ const App: React.FC = () => {
                             {emp.role}
                           </span>
                         </td>
+                        <td className="px-4 py-4 text-[10px] font-bold text-slate-500">
+                          S:{emp.leaveBalance.sick} | C:{emp.leaveBalance.casual} | V:{emp.leaveBalance.vacation}
+                        </td>
                         <td className="px-4 py-4 text-center">
-                          <button 
-                            onClick={() => setDeletingEmployeeId(emp.id)}
-                            className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
-                            disabled={emp.id === user.id}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          <div className="flex items-center justify-center space-x-2">
+                            <button 
+                              onClick={() => setEditingEmployee(emp)}
+                              className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                              title="Edit Employee & Leaves"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => setDeletingEmployeeId(emp.id)}
+                              className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
+                              disabled={emp.id === user.id}
+                              title="Delete Employee"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -259,6 +306,7 @@ const App: React.FC = () => {
                 </table>
               </div>
               {isAddingEmployee && <AddEmployeeModal onSave={handleAddEmployee} onCancel={() => setIsAddingEmployee(false)} />}
+              {editingEmployee && <EditEmployeeModal employee={editingEmployee} onSave={handleUpdateEmployee} onCancel={() => setEditingEmployee(null)} />}
             </div>
           );
         case 'attendance':
@@ -398,6 +446,69 @@ const AddEmployeeModal: React.FC<{onSave: (emp: User) => void, onCancel: () => v
           </select>
           <div className="flex space-x-3 pt-4">
             <button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold shadow-lg">Save Staff</button>
+            <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 text-slate-600 p-4 rounded-2xl font-bold">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const EditEmployeeModal: React.FC<{employee: User, onSave: (emp: User) => void, onCancel: () => void}> = ({ employee, onSave, onCancel }) => {
+  const [data, setData] = useState<User>({ ...employee });
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-8 overflow-y-auto max-h-[90vh]">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-slate-800">Edit Staff Member</h3>
+          <Settings2 size={24} className="text-indigo-600" />
+        </div>
+        
+        <form onSubmit={(e) => { e.preventDefault(); onSave(data); }} className="space-y-6">
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Personal Info</h4>
+            <div className="grid grid-cols-1 gap-4">
+              <input required placeholder="Full Name" className="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
+              <input required placeholder="Designation" className="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.designation} onChange={e => setData({...data, designation: e.target.value})} />
+              <input required placeholder="Department" className="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest border-b border-indigo-100 pb-1">Manage Allotted Leaves</h4>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 ml-1">Sick</label>
+                <input 
+                  type="number" 
+                  className="w-full p-3 bg-indigo-50/30 border border-indigo-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" 
+                  value={data.leaveBalance.sick} 
+                  onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, sick: parseInt(e.target.value) || 0}})} 
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 ml-1">Casual</label>
+                <input 
+                  type="number" 
+                  className="w-full p-3 bg-indigo-50/30 border border-indigo-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" 
+                  value={data.leaveBalance.casual} 
+                  onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, casual: parseInt(e.target.value) || 0}})} 
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 ml-1">Vacation</label>
+                <input 
+                  type="number" 
+                  className="w-full p-3 bg-indigo-50/30 border border-indigo-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" 
+                  value={data.leaveBalance.vacation} 
+                  onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, vacation: parseInt(e.target.value) || 0}})} 
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex space-x-3 pt-4 border-t">
+            <button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold shadow-lg shadow-indigo-100">Update Profile</button>
             <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 text-slate-600 p-4 rounded-2xl font-bold">Cancel</button>
           </div>
         </form>

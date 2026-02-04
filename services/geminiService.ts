@@ -1,19 +1,13 @@
 import { GoogleGenAI } from "@google/genai";
 
-const getApiKey = () => {
-  try {
-    return (typeof process !== 'undefined' && process.env.API_KEY) || '';
-  } catch (e) {
-    return '';
-  }
-};
-
-const apiKey = getApiKey();
+// process.env.API_KEY will be replaced by Vite during build
+const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
 
 export const getHRAssistance = async (query: string, context: any): Promise<string> => {
   if (!apiKey) {
-    return "The AI assistant is currently offline (API key missing). Please contact your administrator.";
+    console.warn("AllenHR: API_KEY is missing from environment.");
+    return "The AI assistant is currently offline. Please contact your HR administrator to configure the API key.";
   }
 
   const model = 'gemini-3-flash-preview';

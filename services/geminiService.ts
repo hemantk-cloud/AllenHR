@@ -1,15 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 
-// process.env.API_KEY will be replaced by Vite during build
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
+// Always use the apiKey from process.env.API_KEY directly in the initialization object
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getHRAssistance = async (query: string, context: any): Promise<string> => {
-  if (!apiKey) {
-    console.warn("AllenHR: API_KEY is missing from environment.");
-    return "The AI assistant is currently offline. Please contact your HR administrator to configure the API key.";
-  }
-
+  // Use 'gemini-3-flash-preview' for basic text tasks as per model selection guidelines
   const model = 'gemini-3-flash-preview';
   
   const prompt = `
@@ -26,10 +21,13 @@ export const getHRAssistance = async (query: string, context: any): Promise<stri
   `;
 
   try {
+    // Correct usage of ai.models.generateContent with model and contents
     const response = await ai.models.generateContent({
       model,
       contents: prompt,
     });
+    
+    // response.text is a getter property, correctly accessed without parenthesis
     return response.text || "I processed your request but don't have a specific answer right now.";
   } catch (error) {
     console.error("Gemini API Error:", error);

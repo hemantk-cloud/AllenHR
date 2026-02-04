@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { AdminDashboard } from './components/AdminDashboard';
@@ -17,7 +17,9 @@ import {
   AlertTriangle, 
   ShieldAlert,
   Hash,
-  Briefcase,
+  Download,
+  Upload,
+  CheckCircle2,
   CalendarCheck2
 } from 'lucide-react';
 
@@ -97,6 +99,8 @@ const App: React.FC = () => {
   const [isPunchedIn, setIsPunchedIn] = useState(false);
   const [isPunching, setIsPunching] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // UI States
   const [editingLog, setEditingLog] = useState<AttendanceLog | null>(null);
@@ -106,7 +110,7 @@ const App: React.FC = () => {
   const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(null);
 
-  // Sync Logic
+  // Sync Logic to LocalStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees));
   }, [employees]);
@@ -151,6 +155,50 @@ const App: React.FC = () => {
     setUser(null);
     setLoginEmail('');
     setIsPunchedIn(false);
+  };
+
+  const handleExportData = () => {
+    const fullData = {
+      employees,
+      attendance,
+      leaveRequests,
+      exportedAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(fullData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `AllenHR_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setSyncStatus("Data exported successfully!");
+    setTimeout(() => setSyncStatus(null), 3000);
+  };
+
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        if (json.employees && json.attendance && json.leaveRequests) {
+          setEmployees(json.employees);
+          setAttendance(json.attendance);
+          setLeaveRequests(json.leaveRequests);
+          setSyncStatus("Sync successful! Database updated.");
+          setTimeout(() => setSyncStatus(null), 3000);
+        } else {
+          alert("Invalid backup file format.");
+        }
+      } catch (err) {
+        alert("Error reading file.");
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handlePunch = async (location: { lat: number; lng: number }, selfie: string) => {
@@ -287,6 +335,7 @@ const App: React.FC = () => {
               <LogIn size={20} />
               <span>Verify Identity</span>
             </button>
+            <p className="text-[10px] text-center text-slate-400">Data is stored locally on this device.</p>
           </form>
         </div>
       </div>
@@ -300,41 +349,93 @@ const App: React.FC = () => {
           return <AdminDashboard attendance={attendance} leaveRequests={leaveRequests} onDeleteLog={setDeletingLogId} employees={employees} />;
         case 'staff':
           return (
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
-               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-slate-800">Staff Management</h3>
-                <button onClick={() => setIsAddingEmployee(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl flex items-center space-x-2 font-bold text-sm shadow-md transition-all active:scale-95"><Plus size={18} /><span>Register Staff</span></button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="border-b border-slate-100">
-                    <tr className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-                      <th className="px-4 py-4">Employee ID</th>
-                      <th className="px-4 py-4">Employee Name</th>
-                      <th className="px-4 py-4">Department</th>
-                      <th className="px-4 py-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {employees.map(emp => (
-                      <tr key={emp.id} className="text-slate-700 hover:bg-slate-50/50">
-                        <td className="px-4 py-4">
-                          <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">
-                            {emp.id}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4"><div><p className="text-sm font-bold">{emp.name}</p><p className="text-[10px] text-slate-400">{emp.email}</p></div></td>
-                        <td className="px-4 py-4 text-sm font-medium">{emp.department}</td>
-                        <td className="px-4 py-4 text-center">
-                          <div className="flex items-center justify-center space-x-2">
-                            <button onClick={() => setEditingEmployee(emp)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Edit Staff & Leave Allotment"><Edit2 size={16}/></button>
-                            <button onClick={() => setDeletingEmployeeId(emp.id)} className="p-2 text-slate-400 hover:text-rose-600" disabled={emp.id === user.id} title="Delete Staff"><Trash2 size={16}/></button>
-                          </div>
-                        </td>
+            <div className="space-y-6">
+              {syncStatus && (
+                <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 px-6 py-4 rounded-2xl flex items-center space-x-3 font-bold text-sm animate-in fade-in slide-in-from-top-4">
+                  <CheckCircle2 size={20} />
+                  <span>{syncStatus}</span>
+                </div>
+              )}
+              
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800">Staff Management</h3>
+                    <p className="text-xs text-slate-400 font-medium mt-1 uppercase tracking-wider">Sync or register your team</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button 
+                      onClick={handleExportData}
+                      className="p-3 bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
+                      title="Export Database to sync with other devices"
+                    >
+                      <Download size={20} />
+                    </button>
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-3 bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
+                      title="Import Database from another device"
+                    >
+                      <Upload size={20} />
+                    </button>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      accept=".json" 
+                      onChange={handleImportData} 
+                    />
+                    <div className="w-px h-8 bg-slate-100 mx-2"></div>
+                    <button 
+                      onClick={() => setIsAddingEmployee(true)} 
+                      className="bg-indigo-600 text-white px-6 py-3 rounded-xl flex items-center space-x-2 font-bold text-sm shadow-lg shadow-indigo-100 transition-all active:scale-95"
+                    >
+                      <Plus size={18} />
+                      <span>Add Staff</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="border-b border-slate-100">
+                      <tr className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+                        <th className="px-4 py-4">Employee ID</th>
+                        <th className="px-4 py-4">Name & Email</th>
+                        <th className="px-4 py-4">Department</th>
+                        <th className="px-4 py-4 text-center">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {employees.map(emp => (
+                        <tr key={emp.id} className="text-slate-700 hover:bg-slate-50/50 transition-colors">
+                          <td className="px-4 py-4">
+                            <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                              {emp.id}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div>
+                              <p className="text-sm font-bold text-slate-800">{emp.name}</p>
+                              <p className="text-[11px] text-slate-400 font-medium">{emp.email}</p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="text-xs font-bold text-slate-600 px-3 py-1 bg-slate-100 rounded-full">
+                              {emp.department}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            <div className="flex items-center justify-center space-x-2">
+                              <button onClick={() => setEditingEmployee(emp)} className="p-2.5 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="Edit Allotment"><Edit2 size={16}/></button>
+                              <button onClick={() => setDeletingEmployeeId(emp.id)} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors" disabled={emp.id === user.id} title="Delete"><Trash2 size={16}/></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
               {isAddingEmployee && <AddEmployeeModal onSave={handleAddEmployee} onCancel={() => setIsAddingEmployee(false)} />}
               {editingEmployee && <EditEmployeeModal employee={editingEmployee} onSave={handleUpdateEmployee} onCancel={() => setEditingEmployee(null)} />}

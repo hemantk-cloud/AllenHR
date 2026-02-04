@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, User, Bot, Loader2 } from 'lucide-react';
 import { getHRAssistance } from '../services/geminiService';
@@ -11,7 +10,7 @@ interface AssistantProps {
 
 export const Assistant: React.FC<AssistantProps> = ({ user, attendance }) => {
   const [messages, setMessages] = useState([
-    { role: 'bot', text: 'Hi Alex! I\'m your AllenHR Assistant. How can I help you with your attendance, leave, or company policies today?' }
+    { role: 'bot', text: `Hi ${user.name}! I'm your AllenHR Assistant. How can I help you with your attendance, leave, or company policies today?` }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,10 +30,14 @@ export const Assistant: React.FC<AssistantProps> = ({ user, attendance }) => {
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setLoading(true);
 
-    const response = await getHRAssistance(userMsg, { user, attendance });
-    
-    setMessages(prev => [...prev, { role: 'bot', text: response || "I'm sorry, I couldn't generate a response." }]);
-    setLoading(false);
+    try {
+      const response = await getHRAssistance(userMsg, { user, attendance });
+      setMessages(prev => [...prev, { role: 'bot', text: response || "I'm sorry, I couldn't generate a response." }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'bot', text: "Error: Could not connect to the AI service." }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

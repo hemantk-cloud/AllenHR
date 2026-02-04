@@ -18,20 +18,21 @@
           -webkit-tap-highlight-color: transparent;
           overflow-x: hidden;
           background-color: #f8fafc;
+          margin: 0;
+          padding: 0;
         }
-        /* Mobile notch padding */
-        #root {
-          padding-top: env(safe-area-inset-top);
-          padding-bottom: env(safe-area-inset-bottom);
+        #root:empty::before {
+          content: 'Initializing AllenHR...';
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          width: 100vw;
+          color: #6366f1;
+          font-weight: 600;
+          font-size: 1.1rem;
         }
     </style>
-    <script>
-      // Diagnostic tool: If the app stays blank, this alert will help us find out why
-      window.onerror = function(msg, url, line) {
-        // Only alert in development or if explicitly testing
-        console.error('Mobile Error: ' + msg + ' at ' + url + ':' + line);
-      };
-    </script>
 <script type="importmap">
 {
   "imports": {
@@ -49,7 +50,7 @@
 </head>
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
-    <!-- Explicitly load the entry point for mobile browsers -->
+    <!-- Manual module entry point fix for some mobile browsers -->
     <script type="module" src="/index.tsx"></script>
 </body>
 </html>

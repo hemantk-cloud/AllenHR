@@ -4,18 +4,17 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // This is the critical fix for the blank screen on mobile
-    'process.env': {
-      API_KEY: JSON.stringify(process.env.API_KEY || '')
-    },
-    'global': {},
+    // Definitive fix for 'process is not defined' errors on mobile
+    'process.env': '({})',
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ''),
+    'global': 'window',
+  },
+  server: {
+    host: true,
+    port: 3000
   },
   resolve: {
     extensions: ['.tsx', '.ts', '.jsx', '.js']
-  },
-  esbuild: {
-    loader: 'tsx',
-    include: /.*\.(ts|tsx|jsx|js)$/,
   },
   build: {
     outDir: 'dist',

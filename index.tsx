@@ -2,12 +2,13 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-// Register Service Worker for PWA functionality
+// Register Service Worker for PWA functionality using relative path
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(registration => console.log('SW registered'))
-      .catch(err => console.error('SW registration failed', err));
+    // Using './sw.js' ensures the service worker is registered from the same origin
+    navigator.serviceWorker.register('./sw.js', { scope: './' })
+      .then(registration => console.log('AllenHR: SW registered successfully', registration.scope))
+      .catch(err => console.error('AllenHR: SW registration failed', err));
   });
 }
 

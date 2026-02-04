@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   LayoutDashboard, 
@@ -30,11 +29,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     { id: 'attendance', label: 'Attendance', icon: Clock },
     { id: 'leave', label: 'Leave Tracking', icon: CalendarDays },
     { id: 'assistant', label: 'HR AI Assistant', icon: MessageSquare },
-    { id: 'profile', label: 'My Profile', icon: UserIcon },
   ];
 
   if (user.role === 'admin') {
-    navItems.splice(4, 0, { id: 'staff', label: 'Staff Management', icon: Users });
+    navItems.push({ id: 'staff', label: 'Staff Management', icon: Users });
   }
 
   return (

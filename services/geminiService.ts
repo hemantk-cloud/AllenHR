@@ -1,9 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Safe initialization for browser environment
 const getApiKey = () => {
   try {
-    return process.env.API_KEY || '';
+    return (typeof process !== 'undefined' && process.env.API_KEY) || '';
   } catch (e) {
     return '';
   }

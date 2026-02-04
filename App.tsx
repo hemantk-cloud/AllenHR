@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { Layout } from './components/Layout.tsx';
-import { Dashboard } from './components/Dashboard.tsx';
-import { AdminDashboard } from './components/AdminDashboard.tsx';
-import { PunchCard } from './components/PunchCard.tsx';
-import { LeaveTracker } from './components/LeaveTracker.tsx';
-import { AdminLeaves } from './components/AdminLeaves.tsx';
-import { Assistant } from './components/Assistant.tsx';
-import { AttendanceCalendar } from './components/AttendanceCalendar.tsx';
-import { AttendanceLog, LeaveRequest, User, UserRole } from './types.ts';
+import { Layout } from './components/Layout';
+import { Dashboard } from './components/Dashboard';
+import { AdminDashboard } from './components/AdminDashboard';
+import { PunchCard } from './components/PunchCard';
+import { LeaveTracker } from './components/LeaveTracker';
+import { AdminLeaves } from './components/AdminLeaves';
+import { Assistant } from './components/Assistant';
+import { AttendanceCalendar } from './components/AttendanceCalendar';
+import { AttendanceLog, LeaveRequest, User, UserRole } from './types';
 import { 
   LogIn, 
   Mail, 
@@ -408,7 +408,7 @@ const AddEmployeeModal: React.FC<{onSave: (emp: User) => void, onCancel: () => v
 
 const ConfirmModal: React.FC<{title: string, message: string, onConfirm: () => void, onCancel: () => void}> = ({ title, message, onConfirm, onCancel }) => (
   <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
-    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm p-8 text-center">
+    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-sm p-8 text-center">
       <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4"><AlertTriangle size={32}/></div>
       <h3 className="text-xl font-bold mb-2 text-slate-800">{title}</h3>
       <p className="text-slate-500 mb-8">{message}</p>

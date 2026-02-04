@@ -1,9 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Always use the recommended initialization with the API_KEY from process.env
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialization using the required named parameter and environment variable
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
-export const getHRAssistance = async (query: string, context: any) => {
+export const getHRAssistance = async (query: string, context: any): Promise<string> => {
   const model = 'gemini-3-flash-preview';
   
   const prompt = `
@@ -11,21 +11,20 @@ export const getHRAssistance = async (query: string, context: any) => {
     The employee is asking: "${query}"
     
     Current Context:
-    - Employee Name: ${context.user.name}
-    - Role: ${context.user.role}
-    - Attendance History Summary: ${JSON.stringify(context.attendance.slice(0, 5))}
-    - Leave Balance: ${JSON.stringify(context.user.leaveBalance)}
+    - Employee Name: ${context.user?.name || 'Employee'}
+    - Role: ${context.user?.role || 'Staff'}
+    - Attendance History Summary: ${JSON.stringify(context.attendance?.slice(0, 5) || [])}
+    - Leave Balance: ${JSON.stringify(context.user?.leaveBalance || {})}
     
     Provide a professional, helpful, and concise response. If they ask about policies, answer based on general modern HR practices.
   `;
 
   try {
-    // Generate content using the recommended ai.models.generateContent call
     const response = await ai.models.generateContent({
       model,
       contents: prompt,
     });
-    return response.text;
+    return response.text || "I processed your request but don't have a specific answer right now.";
   } catch (error) {
     console.error("Gemini API Error:", error);
     return "I'm sorry, I'm having trouble connecting to the HR intelligence module right now.";

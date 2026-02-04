@@ -4,7 +4,6 @@ import {
   Clock, 
   CalendarDays, 
   MessageSquare, 
-  User as UserIcon, 
   LogOut, 
   Menu, 
   X, 

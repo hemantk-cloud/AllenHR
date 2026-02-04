@@ -1,7 +1,8 @@
-const CACHE_NAME = 'allenhr-v2';
+const CACHE_NAME = 'allenhr-v3';
 const ASSETS_TO_CACHE = [
   '/',
-  '/index.html'
+  '/index.html',
+  '/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
@@ -26,10 +27,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network first, then fallback to cache
+  // Check if it's a request for our own assets
   event.respondWith(
     fetch(event.request).catch(() => {
-      return caches.match(event.request);
+      return caches.match(event.request) || caches.match('/index.html');
     })
   );
 });

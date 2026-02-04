@@ -3,7 +3,6 @@ import {
   LayoutDashboard, 
   Clock, 
   CalendarDays, 
-  MessageSquare, 
   LogOut, 
   Menu, 
   X, 
@@ -27,7 +26,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'attendance', label: 'Attendance', icon: Clock },
     { id: 'leave', label: 'Leave Tracking', icon: CalendarDays },
-    { id: 'assistant', label: 'HR AI Assistant', icon: MessageSquare },
   ];
 
   if (user.role === 'admin') {

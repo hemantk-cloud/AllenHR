@@ -16,13 +16,22 @@
         body { 
           font-family: 'Inter', sans-serif; 
           -webkit-tap-highlight-color: transparent;
-          user-select: none;
+          overflow-x: hidden;
+          background-color: #f8fafc;
         }
-        /* Fix for mobile notch area */
-        header {
+        /* Mobile notch padding */
+        #root {
           padding-top: env(safe-area-inset-top);
+          padding-bottom: env(safe-area-inset-bottom);
         }
     </style>
+    <script>
+      // Diagnostic tool: If the app stays blank, this alert will help us find out why
+      window.onerror = function(msg, url, line) {
+        // Only alert in development or if explicitly testing
+        console.error('Mobile Error: ' + msg + ' at ' + url + ':' + line);
+      };
+    </script>
 <script type="importmap">
 {
   "imports": {
@@ -40,5 +49,7 @@
 </head>
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
+    <!-- Explicitly load the entry point for mobile browsers -->
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>

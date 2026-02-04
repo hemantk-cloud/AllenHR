@@ -16,20 +16,19 @@ import {
   RefreshCw,
   Copy,
   ClipboardCheck,
-  Zap,
-  ChevronRight,
   Database,
   ArrowLeftRight,
   CalendarCheck2,
-  Settings
+  Settings,
+  ShieldCheck,
+  Download
 } from 'lucide-react';
 
 const STORAGE_KEYS = {
   USER: 'allen_hr_user',
   DB_EMPLOYEES: 'allen_hr_employees_v2',
   DB_ATTENDANCE: 'allen_hr_attendance_v2',
-  DB_LEAVES: 'allen_hr_leaves_v2',
-  INITIALIZED: 'allen_hr_init'
+  DB_LEAVES: 'allen_hr_leaves_v2'
 };
 
 const INITIAL_EMPLOYEES: User[] = [
@@ -65,15 +64,17 @@ const App: React.FC = () => {
     const saved = localStorage.getItem(STORAGE_KEYS.USER);
     if (saved) {
       const parsed = JSON.parse(saved);
-      const savedEmployees = localStorage.getItem(STORAGE_KEYS.DB_EMPLOYEES);
-      const list: User[] = savedEmployees ? JSON.parse(savedEmployees) : INITIAL_EMPLOYEES;
-      return list.find(e => e.email === parsed.email) || null;
+      // Re-fetch from latest list to sync data changes
+      const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.DB_EMPLOYEES) || '[]');
+      const found = list.find((e: any) => e.email === parsed.email);
+      if (found) return found;
+      // If not found in dynamic list, check initial list
+      return INITIAL_EMPLOYEES.find(e => e.email === parsed.email) || null;
     }
     return null;
   });
 
-  // --- UI Flow States ---
-  const [showSetupWizard, setShowSetupWizard] = useState(false);
+  // --- UI States ---
   const [loginEmail, setLoginEmail] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isPunchedIn, setIsPunchedIn] = useState(false);
@@ -90,7 +91,7 @@ const App: React.FC = () => {
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<User | null>(null);
 
-  // --- Effects ---
+  // --- Persistence Logic ---
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.DB_EMPLOYEES, JSON.stringify(employees));
     localStorage.setItem(STORAGE_KEYS.DB_ATTENDANCE, JSON.stringify(attendance));
@@ -108,7 +109,7 @@ const App: React.FC = () => {
     }
   }, [user, attendance]);
 
-  // --- Handlers ---
+  // --- Auth Handlers ---
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
@@ -116,12 +117,18 @@ const App: React.FC = () => {
     if (found) {
       setUser(found);
     } else {
-      setLoginError("Account not found. Admin needs to sync this device.");
+      setLoginError("Account not recognized on this device.");
     }
   };
 
+  const handleLogout = () => {
+    setUser(null);
+    setActiveTab('dashboard');
+  };
+
+  // --- Sync Handlers ---
   const generateSyncCode = () => {
-    const db = { e: employees, a: attendance, l: leaveRequests, v: '2.0', t: Date.now() };
+    const db = { e: employees, a: attendance, l: leaveRequests, t: Date.now() };
     const code = btoa(JSON.stringify(db));
     setGeneratedCode(code);
     setShowSyncModal(true);
@@ -134,15 +141,13 @@ const App: React.FC = () => {
         setEmployees(decoded.e);
         setAttendance(decoded.a);
         setLeaveRequests(decoded.l || []);
-        localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
-        alert("Success! Staff database synchronized.");
-        setShowSetupWizard(false);
+        alert("Database successfully updated via Sync Key.");
         setSyncCodeInput('');
       } else {
-        throw new Error("Invalid structure");
+        throw new Error("Format error");
       }
     } catch (err) {
-      alert("Invalid Sync Code. Please ensure you copied the whole text.");
+      alert("Error: The key you pasted is invalid or corrupted.");
     }
   };
 
@@ -180,77 +185,22 @@ const App: React.FC = () => {
     setIsPunching(false);
   };
 
-  // --- Setup Wizard Screen (Admin Only) ---
-  if (showSetupWizard && !user) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in duration-300">
-          <div className="bg-indigo-600 p-8 text-center text-white relative">
-            <h1 className="text-3xl font-black tracking-tighter mb-1">Device Setup</h1>
-            <p className="text-indigo-100 text-xs font-bold uppercase tracking-widest">Administrator Portal</p>
-          </div>
-          <div className="p-8 space-y-6">
-            <button 
-              onClick={() => { localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true'); setShowSetupWizard(false); }}
-              className="w-full flex items-center justify-between p-5 bg-white border-2 border-slate-100 hover:border-indigo-600 rounded-3xl transition-all group"
-            >
-              <div className="flex items-center space-x-4">
-                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                  <Zap size={24} />
-                </div>
-                <div className="text-left">
-                  <p className="font-bold text-slate-800">New Workspace</p>
-                  <p className="text-xs text-slate-400">Initialize a fresh database</p>
-                </div>
-              </div>
-              <ChevronRight className="text-slate-300" />
-            </button>
-
-            <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-100"></span></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-3 text-slate-400 font-bold">OR IMPORT DATA</span></div></div>
-
-            <div className="space-y-4">
-              <p className="text-xs font-bold text-indigo-600 text-center uppercase tracking-widest flex items-center justify-center space-x-2">
-                <ArrowLeftRight size={14} />
-                <span>Paste Phone Code</span>
-              </p>
-              <textarea 
-                placeholder="Paste code from Admin Phone here..."
-                className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-mono custom-scrollbar"
-                value={syncCodeInput}
-                onChange={e => setSyncCodeInput(e.target.value)}
-              />
-              <button 
-                onClick={() => importSyncCode(syncCodeInput)}
-                disabled={!syncCodeInput}
-                className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 disabled:opacity-50"
-              >
-                Sync Device
-              </button>
-            </div>
-            
-            <button onClick={() => setShowSetupWizard(false)} className="w-full text-xs text-slate-400 font-bold hover:text-slate-600">Back to Login</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- Login Screen (Default Entry) ---
+  // --- Main Render ---
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden">
           <div className="bg-indigo-600 p-10 text-center text-white">
             <h1 className="text-4xl font-black tracking-tighter mb-2">AllenHR</h1>
-            <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest">{employees.length} Authorized Records Found</p>
+            <p className="text-indigo-100 text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Employee Management Portal</p>
           </div>
           <form onSubmit={handleLogin} className="p-10 space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 ml-1">Staff Work Email</label>
+              <label className="text-sm font-bold text-slate-700 ml-1">Staff Identity</label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                 <input 
-                  type="email" required placeholder="name@allen.in"
+                  type="email" required placeholder="your.name@allen.in"
                   value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium"
                 />
@@ -265,17 +215,14 @@ const App: React.FC = () => {
             )}
 
             <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-100 transition-all active:scale-95">
-              Employee Portal Access
+              Enter Portal
             </button>
 
-            <div className="pt-6 border-t border-slate-100 flex justify-center">
-              <button 
-                type="button" 
-                onClick={() => setShowSetupWizard(true)}
-                className="text-[10px] text-slate-300 hover:text-indigo-500 font-black uppercase tracking-[0.2em] transition-colors"
-              >
-                Admin: Setup/Sync Device
-              </button>
+            <div className="pt-8 text-center">
+              <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest leading-relaxed">
+                Authorized Personnel Only<br/>
+                Digital Attendance & Records
+              </p>
             </div>
           </form>
         </div>
@@ -284,7 +231,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={() => setUser(null)}>
+    <Layout activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={handleLogout}>
       {activeTab === 'dashboard' && (
         user.role === 'admin' ? 
         <AdminDashboard attendance={attendance} leaveRequests={leaveRequests} onDeleteLog={id => setAttendance(attendance.filter(a => a.id !== id))} employees={employees} /> :
@@ -295,30 +242,56 @@ const App: React.FC = () => {
       )}
 
       {activeTab === 'staff' && user.role === 'admin' && (
-        <div className="space-y-6">
-          <div className="bg-gradient-to-r from-indigo-600 to-violet-700 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between shadow-xl relative overflow-hidden">
-             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-xl"></div>
-             <div className="relative z-10 text-center md:text-left mb-6 md:mb-0">
-               <h3 className="text-2xl font-black tracking-tight flex items-center space-x-2">
-                 <Database size={24} />
-                 <span>Company Sync Center</span>
+        <div className="space-y-8">
+          {/* Sync Key Section - Moved here as requested */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden group">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-xl group-hover:scale-150 transition-transform duration-700"></div>
+               <div className="relative z-10">
+                 <h3 className="text-xl font-black mb-1 flex items-center space-x-2">
+                   <Database size={20} />
+                   <span>Export Sync Key</span>
+                 </h3>
+                 <p className="text-indigo-100 text-xs mb-6 font-medium">Use this to sync other devices with current data.</p>
+                 <button onClick={generateSyncCode} className="w-full bg-white text-indigo-600 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">
+                   Generate Master Key
+                 </button>
+               </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+               <h3 className="text-xl font-black text-slate-800 mb-1 flex items-center space-x-2">
+                 <ArrowLeftRight size={20} className="text-indigo-600" />
+                 <span>Import/Setup Data</span>
                </h3>
-               <p className="text-indigo-100 text-sm mt-1">Export your data to Chrome or other staff devices.</p>
-             </div>
-             <button onClick={generateSyncCode} className="bg-white text-indigo-600 px-8 py-4 rounded-2xl font-black text-sm shadow-lg active:scale-95 transition-all">
-               Generate Sync Key
-             </button>
+               <p className="text-slate-400 text-xs mb-6 font-medium">Paste a Sync Key from another device to update local DB.</p>
+               <div className="flex space-x-2">
+                 <input 
+                    placeholder="Paste Master Key here..."
+                    className="flex-1 bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={syncCodeInput}
+                    onChange={e => setSyncCodeInput(e.target.value)}
+                 />
+                 <button 
+                  onClick={() => importSyncCode(syncCodeInput)}
+                  className="bg-slate-900 text-white px-6 rounded-2xl text-xs font-bold active:scale-95 transition-all flex items-center space-x-2"
+                 >
+                   <Download size={14} />
+                   <span>Import</span>
+                 </button>
+               </div>
+            </div>
           </div>
 
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
               <div>
-                <h3 className="text-xl font-bold text-slate-800">Staff Management</h3>
-                <p className="text-xs text-slate-400 font-medium tracking-wide">Authorized staff: {employees.length}</p>
+                <h3 className="text-2xl font-black text-slate-800 tracking-tight">Staff Management</h3>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.1em] mt-1">{employees.length} Registered Identities</p>
               </div>
               <button 
                 onClick={() => setIsAddingEmployee(true)}
-                className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3.5 rounded-2xl flex items-center justify-center space-x-2 font-bold text-sm shadow-xl shadow-indigo-100 active:scale-95 transition-all"
+                className="w-full sm:w-auto bg-indigo-600 text-white px-8 py-4 rounded-2xl flex items-center justify-center space-x-2 font-black text-sm shadow-xl shadow-indigo-100 active:scale-95 transition-all"
               >
                 <Plus size={20} />
                 <span>Register Staff Member</span>
@@ -328,37 +301,40 @@ const App: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="border-b border-slate-100">
-                  <tr className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                    <th className="px-6 py-4">Identity</th>
-                    <th className="px-6 py-4">Department</th>
-                    <th className="px-6 py-4 text-center">Status</th>
-                    <th className="px-6 py-4 text-center">Actions</th>
+                  <tr className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
+                    <th className="px-6 py-5">Full Name & Email</th>
+                    <th className="px-6 py-5">Department</th>
+                    <th className="px-6 py-5 text-center">Identity Status</th>
+                    <th className="px-6 py-5 text-center">Management</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {employees.map(emp => (
-                    <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4">
-                         <div className="flex items-center space-x-3">
-                           <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs">
+                    <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-5">
+                         <div className="flex items-center space-x-4">
+                           <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-black text-sm">
                              {emp.name.split(' ').map(n => n[0]).join('')}
                            </div>
                            <div>
-                             <p className="text-sm font-bold text-slate-800">{emp.name}</p>
-                             <p className="text-[10px] text-slate-400 font-mono tracking-tighter">{emp.email}</p>
+                             <p className="text-sm font-bold text-slate-800 leading-tight">{emp.name}</p>
+                             <p className="text-[10px] text-slate-400 font-mono tracking-tighter mt-1">{emp.email}</p>
                            </div>
                          </div>
                       </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-slate-500">{emp.department}</td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase px-2 py-1 rounded-full border border-emerald-100">Active</span>
+                      <td className="px-6 py-5 text-xs font-black text-slate-500 uppercase tracking-widest">{emp.department}</td>
+                      <td className="px-6 py-5 text-center">
+                        <span className="bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase px-3 py-1 rounded-full border border-emerald-100 tracking-widest inline-flex items-center space-x-1">
+                          <ShieldCheck size={10} />
+                          <span>Active</span>
+                        </span>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-6 py-5 text-center">
                         <div className="flex items-center justify-center space-x-1">
-                          <button onClick={() => setEditingEmployee(emp)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"><Edit2 size={16}/></button>
+                          <button onClick={() => setEditingEmployee(emp)} className="p-2.5 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit2 size={16}/></button>
                           <button 
                             onClick={() => { if(confirm(`Revoke access for ${emp.name}?`)) setEmployees(employees.filter(e => e.id !== emp.id)); }} 
-                            className="p-2 text-slate-300 hover:text-rose-600 transition-colors"
+                            className="p-2.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                             disabled={emp.id === user.id}
                           >
                             <Trash2 size={16}/>
@@ -377,17 +353,17 @@ const App: React.FC = () => {
       {activeTab === 'attendance' && <AttendanceCalendar logs={attendance.filter(a => a.employeeId === user.id)} />}
       {activeTab === 'leave' && <LeaveTracker user={user} requests={leaveRequests.filter(l => l.employeeId === user.id)} onRequest={req => setLeaveRequests([...leaveRequests, {...req, id: Math.random().toString(), employeeId: user.id, employeeName: user.name, status: 'pending', appliedDate: new Date().toISOString()} as LeaveRequest])} />}
 
-      {/* Sync Key Modal */}
+      {/* Sync Key Modal Overlay */}
       {showSyncModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8 animate-in zoom-in duration-300">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-10 animate-in zoom-in duration-300">
             <h3 className="text-2xl font-black mb-4 text-slate-800">Master Sync Key</h3>
-            <p className="text-sm text-slate-500 mb-6 leading-relaxed">Copy this key and paste it on your Chrome tab to migrate all data.</p>
+            <p className="text-sm text-slate-500 mb-6 leading-relaxed">Copy this key and paste it on your Chrome tab to migrate all data instantly.</p>
             
-            <div className="relative mb-6 group">
+            <div className="relative mb-8 group">
               <textarea 
                 readOnly
-                className="w-full h-40 p-5 bg-slate-50 border border-slate-200 rounded-3xl outline-none text-[10px] font-mono leading-tight custom-scrollbar"
+                className="w-full h-44 p-6 bg-slate-50 border border-slate-100 rounded-3xl outline-none text-[10px] font-mono leading-tight custom-scrollbar focus:ring-0"
                 value={generatedCode || ''}
               />
               <button 
@@ -396,17 +372,18 @@ const App: React.FC = () => {
                   setCopySuccess(true);
                   setTimeout(() => setCopySuccess(false), 2000);
                 }}
-                className={`absolute bottom-4 right-4 p-4 rounded-2xl shadow-xl transition-all ${copySuccess ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                className={`absolute bottom-4 right-4 p-4 rounded-2xl shadow-xl transition-all duration-300 ${copySuccess ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
               >
                 {copySuccess ? <ClipboardCheck size={20} /> : <Copy size={20} />}
               </button>
             </div>
             
-            <button onClick={() => setShowSyncModal(false)} className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold">Close</button>
+            <button onClick={() => setShowSyncModal(false)} className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-sm hover:bg-slate-200 transition-colors">Dismiss</button>
           </div>
         </div>
       )}
 
+      {/* Staff Modals */}
       {isAddingEmployee && (
         <AddEmployeeModal 
           onSave={emp => { setEmployees([...employees, emp]); setIsAddingEmployee(false); }} 
@@ -430,20 +407,20 @@ const AddEmployeeModal: React.FC<{onSave: (emp: User) => void, onCancel: () => v
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-10 animate-in zoom-in duration-200">
-        <h3 className="text-2xl font-black mb-8 flex items-center space-x-2">
-          <Plus className="text-indigo-600" />
-          <span>New Staff</span>
+        <h3 className="text-2xl font-black mb-8 flex items-center space-x-3">
+          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Plus size={24} /></div>
+          <span>Identity Creation</span>
         </h3>
         <form onSubmit={e => { e.preventDefault(); onSave({...data, leaveBalance: { sick: 10, casual: 10, vacation: 15 }}); }} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <input required placeholder="EMP ID" className="p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none" value={data.id} onChange={e => setData({...data, id: e.target.value.toUpperCase()})} />
-            <input required placeholder="Department" className="p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
+            <input required placeholder="Staff ID" className="p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono" value={data.id} onChange={e => setData({...data, id: e.target.value.toUpperCase()})} />
+            <input required placeholder="Department" className="p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
           </div>
-          <input required placeholder="Full Name" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
-          <input required type="email" placeholder="Email Address" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={data.email} onChange={e => setData({...data, email: e.target.value})} />
+          <input required placeholder="Full Name" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
+          <input required type="email" placeholder="Work Email" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.email} onChange={e => setData({...data, email: e.target.value})} />
           <div className="flex space-x-3 pt-6">
-            <button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold shadow-lg active:scale-95 transition-all">Register</button>
-            <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 p-4 rounded-2xl font-bold text-slate-500">Cancel</button>
+            <button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-black shadow-lg shadow-indigo-100 active:scale-95 transition-all">Enroll Staff</button>
+            <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 p-4 rounded-2xl font-black text-slate-400">Cancel</button>
           </div>
         </form>
       </div>
@@ -456,27 +433,27 @@ const EditEmployeeModal: React.FC<{employee: User, onSave: (emp: User) => void, 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-10 animate-in zoom-in duration-200">
-        <h3 className="text-2xl font-black mb-8 flex items-center space-x-2">
-          <Settings className="text-indigo-600" />
-          <span>Edit Profile</span>
+        <h3 className="text-2xl font-black mb-8 flex items-center space-x-3">
+          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Settings size={24} /></div>
+          <span>Modify Identity</span>
         </h3>
         <form onSubmit={e => { e.preventDefault(); onSave(data); }} className="space-y-4">
-          <input required placeholder="Name" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
-          <input required placeholder="Department" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
-          <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
-             <p className="text-[10px] font-black text-indigo-400 uppercase mb-4 flex items-center space-x-1">
+          <input required placeholder="Name" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
+          <input required placeholder="Department" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
+          <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center space-x-1">
                <CalendarCheck2 size={12} />
-               <span>Leave Balances</span>
+               <span>Available Leaves</span>
              </p>
              <div className="grid grid-cols-3 gap-3">
-               <div className="space-y-1"><label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Sick</label><input type="number" className="w-full p-3 rounded-xl font-bold text-center" value={data.leaveBalance.sick} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, sick: parseInt(e.target.value)||0}})}/></div>
-               <div className="space-y-1"><label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Casual</label><input type="number" className="w-full p-3 rounded-xl font-bold text-center" value={data.leaveBalance.casual} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, casual: parseInt(e.target.value)||0}})}/></div>
-               <div className="space-y-1"><label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Vacation</label><input type="number" className="w-full p-3 rounded-xl font-bold text-center" value={data.leaveBalance.vacation} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, vacation: parseInt(e.target.value)||0}})}/></div>
+               <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 uppercase ml-1">Sick</label><input type="number" className="w-full p-3 rounded-xl font-black text-center text-indigo-600" value={data.leaveBalance.sick} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, sick: parseInt(e.target.value)||0}})}/></div>
+               <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 uppercase ml-1">Casu</label><input type="number" className="w-full p-3 rounded-xl font-black text-center text-indigo-600" value={data.leaveBalance.casual} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, casual: parseInt(e.target.value)||0}})}/></div>
+               <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 uppercase ml-1">Vaca</label><input type="number" className="w-full p-3 rounded-xl font-black text-center text-indigo-600" value={data.leaveBalance.vacation} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, vacation: parseInt(e.target.value)||0}})}/></div>
              </div>
           </div>
           <div className="flex space-x-3 pt-6">
-            <button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold shadow-lg">Update</button>
-            <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 p-4 rounded-2xl font-bold text-slate-500">Cancel</button>
+            <button type="submit" className="flex-1 bg-slate-900 text-white p-4 rounded-2xl font-black shadow-lg">Save Update</button>
+            <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 p-4 rounded-2xl font-black text-slate-400">Cancel</button>
           </div>
         </form>
       </div>

@@ -4,17 +4,12 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    // Priority order for resolution
-    extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json']
-  },
-  esbuild: {
-    // Force JSX transformation for all TSX files
-    include: /\.(tsx|ts|jsx|js)$/,
-    loader: 'tsx'
+    extensions: ['.tsx', '.ts', '.jsx', '.js']
   },
   build: {
     outDir: 'dist',
-    sourcemap: false,
+    target: 'esnext',
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: undefined

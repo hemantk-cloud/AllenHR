@@ -1,9 +1,22 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Initialization using the required named parameter and environment variable
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Safe initialization for browser environment
+const getApiKey = () => {
+  try {
+    return process.env.API_KEY || '';
+  } catch (e) {
+    return '';
+  }
+};
+
+const apiKey = getApiKey();
+const ai = new GoogleGenAI({ apiKey });
 
 export const getHRAssistance = async (query: string, context: any): Promise<string> => {
+  if (!apiKey) {
+    return "The AI assistant is currently offline (API key missing). Please contact your administrator.";
+  }
+
   const model = 'gemini-3-flash-preview';
   
   const prompt = `

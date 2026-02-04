@@ -19,7 +19,9 @@ import {
   Settings2,
   Download,
   Smartphone,
-  Save
+  Save,
+  Hash,
+  Briefcase
 } from 'lucide-react';
 
 const STORAGE_KEYS = {
@@ -85,8 +87,6 @@ const App: React.FC = () => {
     const saved = localStorage.getItem(STORAGE_KEYS.USER);
     if (saved) {
       const parsedUser = JSON.parse(saved);
-      // Re-verify the user still exists in our employee list
-      // This allows admin updates to reflect even for persistent logins
       const latestData = localStorage.getItem(STORAGE_KEYS.EMPLOYEES);
       const employeesList: User[] = latestData ? JSON.parse(latestData) : INITIAL_EMPLOYEES;
       const verifiedUser = employeesList.find(e => e.email === parsedUser.email);
@@ -327,22 +327,32 @@ const App: React.FC = () => {
             <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
                <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-slate-800">Staff Management</h3>
-                <button onClick={() => setIsAddingEmployee(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl flex items-center space-x-2 font-bold text-sm shadow-md transition-all active:scale-95"><Plus size={18} /><span>Add Staff</span></button>
+                <button onClick={() => setIsAddingEmployee(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl flex items-center space-x-2 font-bold text-sm shadow-md transition-all active:scale-95"><Plus size={18} /><span>Register Staff</span></button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="border-b border-slate-100">
-                    <tr className="text-slate-400 text-xs font-bold uppercase tracking-wider"><th className="px-4 py-4">Employee</th><th className="px-4 py-4">Designation</th><th className="px-4 py-4 text-center">Actions</th></tr>
+                    <tr className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+                      <th className="px-4 py-4">Employee ID</th>
+                      <th className="px-4 py-4">Employee Name</th>
+                      <th className="px-4 py-4">Department</th>
+                      <th className="px-4 py-4 text-center">Actions</th>
+                    </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {employees.map(emp => (
                       <tr key={emp.id} className="text-slate-700 hover:bg-slate-50/50">
+                        <td className="px-4 py-4">
+                          <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">
+                            {emp.id}
+                          </span>
+                        </td>
                         <td className="px-4 py-4"><div><p className="text-sm font-bold">{emp.name}</p><p className="text-[10px] text-slate-400">{emp.email}</p></div></td>
-                        <td className="px-4 py-4 text-sm font-medium">{emp.designation}</td>
+                        <td className="px-4 py-4 text-sm font-medium">{emp.department}</td>
                         <td className="px-4 py-4 text-center">
                           <div className="flex items-center justify-center space-x-2">
-                            <button onClick={() => setEditingEmployee(emp)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><Edit2 size={16}/></button>
-                            <button onClick={() => setDeletingEmployeeId(emp.id)} className="p-2 text-slate-400 hover:text-rose-600" disabled={emp.id === user.id}><Trash2 size={16}/></button>
+                            <button onClick={() => setEditingEmployee(emp)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Edit Staff Details"><Edit2 size={16}/></button>
+                            <button onClick={() => setDeletingEmployeeId(emp.id)} className="p-2 text-slate-400 hover:text-rose-600" disabled={emp.id === user.id} title="Delete Staff"><Trash2 size={16}/></button>
                           </div>
                         </td>
                       </tr>
@@ -446,27 +456,76 @@ const App: React.FC = () => {
 };
 
 const AddEmployeeModal: React.FC<{onSave: (emp: User) => void, onCancel: () => void}> = ({ onSave, onCancel }) => {
-  const [data, setData] = useState({ name: '', email: '', role: 'employee' as UserRole, designation: '', department: '' });
+  const [data, setData] = useState({ id: '', name: '', email: '', role: 'employee' as UserRole, designation: '', department: '' });
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"><div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8"><h3 className="text-xl font-bold mb-6">Register New Staff</h3><form onSubmit={(e) => { e.preventDefault(); onSave({...data, id: 'EMP'+Date.now(), leaveBalance: { sick: 10, casual: 10, vacation: 15 }}); }} className="space-y-4"><input required placeholder="Name" className="w-full p-4 bg-slate-50 border rounded-2xl" value={data.name} onChange={e => setData({...data, name: e.target.value})} /><input required type="email" placeholder="Email" className="w-full p-4 bg-slate-50 border rounded-2xl" value={data.email} onChange={e => setData({...data, email: e.target.value})} /><input required placeholder="Designation" className="w-full p-4 bg-slate-50 border rounded-2xl" value={data.designation} onChange={e => setData({...data, designation: e.target.value})} /><select className="w-full p-4 bg-slate-50 border rounded-2xl" value={data.role} onChange={e => setData({...data, role: e.target.value as UserRole})}><option value="employee">Employee</option><option value="admin">Admin</option></select><div className="flex space-x-3"><button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold">Save</button><button type="button" onClick={onCancel} className="flex-1 bg-slate-100 p-4 rounded-2xl">Cancel</button></div></form></div></div>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8">
+        <h3 className="text-xl font-bold mb-6 text-slate-800">Register New Staff</h3>
+        <form onSubmit={(e) => { e.preventDefault(); onSave({...data, leaveBalance: { sick: 10, casual: 10, vacation: 15 }}); }} className="space-y-4">
+          <div className="relative">
+            <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input required placeholder="Employee ID (e.g., EMP501)" className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.id} onChange={e => setData({...data, id: e.target.value.toUpperCase()})} />
+          </div>
+          <input required placeholder="Full Name" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
+          <input required type="email" placeholder="Work Email" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.email} onChange={e => setData({...data, email: e.target.value})} />
+          <div className="grid grid-cols-2 gap-3">
+             <input required placeholder="Designation" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" value={data.designation} onChange={e => setData({...data, designation: e.target.value})} />
+             <input required placeholder="Department" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
+          </div>
+          <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700" value={data.role} onChange={e => setData({...data, role: e.target.value as UserRole})}>
+            <option value="employee">Staff Access</option>
+            <option value="admin">Administrator</option>
+          </select>
+          <div className="flex space-x-3 pt-2">
+            <button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">Register</button>
+            <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 text-slate-600 p-4 rounded-2xl font-bold hover:bg-slate-200 transition-all">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 };
 
 const EditEmployeeModal: React.FC<{employee: User, onSave: (emp: User) => void, onCancel: () => void}> = ({ employee, onSave, onCancel }) => {
   const [data, setData] = useState<User>({ ...employee });
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"><div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8"><h3 className="text-xl font-bold mb-6">Edit Staff</h3><form onSubmit={(e) => { e.preventDefault(); onSave(data); }} className="space-y-4"><input required placeholder="Name" className="w-full p-4 bg-slate-50 border rounded-2xl" value={data.name} onChange={e => setData({...data, name: e.target.value})} /><input required placeholder="Designation" className="w-full p-4 bg-slate-50 border rounded-2xl" value={data.designation} onChange={e => setData({...data, designation: e.target.value})} /><div className="flex space-x-3"><button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold">Update</button><button type="button" onClick={onCancel} className="flex-1 bg-slate-100 p-4 rounded-2xl">Cancel</button></div></form></div></div>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8">
+        <h3 className="text-xl font-bold mb-6 text-slate-800">Edit Staff Record</h3>
+        <form onSubmit={(e) => { e.preventDefault(); onSave(data); }} className="space-y-4">
+          <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-between mb-4">
+             <span className="text-xs font-bold text-indigo-400 uppercase">Employee ID</span>
+             <span className="font-mono font-bold text-indigo-700">{data.id}</span>
+          </div>
+          <input required placeholder="Full Name" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
+          <div className="grid grid-cols-2 gap-3">
+             <div>
+               <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Designation</label>
+               <input required placeholder="Designation" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" value={data.designation} onChange={e => setData({...data, designation: e.target.value})} />
+             </div>
+             <div>
+               <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Department</label>
+               <input required placeholder="Department" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
+             </div>
+          </div>
+          <div className="flex space-x-3 pt-2">
+            <button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">Update Record</button>
+            <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 text-slate-600 p-4 rounded-2xl font-bold hover:bg-slate-200 transition-all">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 };
 
 const ConfirmModal: React.FC<{title: string, message: string, onConfirm: () => void, onCancel: () => void}> = ({ title, message, onConfirm, onCancel }) => (
-  <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"><div className="bg-white rounded-[2rem] p-8 text-center max-w-xs"><AlertTriangle size={32} className="mx-auto text-rose-500 mb-4" /><h3 className="text-xl font-bold mb-2">{title}</h3><p className="text-slate-500 mb-6">{message}</p><div className="flex flex-col space-y-2"><button onClick={onConfirm} className="bg-rose-600 text-white p-4 rounded-2xl font-bold">Confirm</button><button onClick={onCancel} className="bg-slate-100 p-4 rounded-2xl">Cancel</button></div></div></div>
+  <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"><div className="bg-white rounded-[2rem] p-8 text-center max-w-xs shadow-2xl"><AlertTriangle size={32} className="mx-auto text-rose-500 mb-4" /><h3 className="text-xl font-bold mb-2">{title}</h3><p className="text-slate-500 mb-6">{message}</p><div className="flex flex-col space-y-2"><button onClick={onConfirm} className="bg-rose-600 text-white p-4 rounded-2xl font-bold shadow-lg shadow-rose-100 transition-all active:scale-95">Confirm</button><button onClick={onCancel} className="bg-slate-100 p-4 rounded-2xl font-bold hover:bg-slate-200 transition-all">Cancel</button></div></div></div>
 );
 
 const AdminPunchEditor: React.FC<{ log: AttendanceLog | null, onSave: (log: AttendanceLog) => void, onCancel: () => void }> = ({ log, onSave, onCancel }) => {
   const [formData, setFormData] = useState<AttendanceLog>(log || { id: Math.random().toString(36).substr(2, 9), employeeId: '', employeeName: '', date: new Date().toISOString().split('T')[0], punchIn: '09:00 AM', punchOut: '06:00 PM', totalHours: 9 });
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"><div className="bg-white rounded-[2rem] w-full max-w-md p-8"><h3 className="text-xl font-bold mb-6">Attendance Record</h3><form onSubmit={e => { e.preventDefault(); onSave(formData); }} className="space-y-4"><input required placeholder="Name" className="w-full p-4 bg-slate-50 border rounded-2xl" value={formData.employeeName} onChange={e => setFormData({...formData, employeeName: e.target.value})} /><input type="date" className="w-full p-4 bg-slate-50 border rounded-2xl" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} /><div className="grid grid-cols-2 gap-2"><input placeholder="In" className="w-full p-4 bg-slate-50 border rounded-2xl" value={formData.punchIn} onChange={e => setFormData({...formData, punchIn: e.target.value})} /><input placeholder="Out" className="w-full p-4 bg-slate-50 border rounded-2xl" value={formData.punchOut || ''} onChange={e => setFormData({...formData, punchOut: e.target.value})} /></div><div className="flex space-x-3"><button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold">Save</button><button type="button" onClick={onCancel} className="flex-1 bg-slate-100 p-4 rounded-2xl">Cancel</button></div></form></div></div>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"><div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl"><h3 className="text-xl font-bold mb-6 text-slate-800">Attendance Adjustment</h3><form onSubmit={e => { e.preventDefault(); onSave(formData); }} className="space-y-4"><input required placeholder="Staff Name" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={formData.employeeName} onChange={e => setFormData({...formData, employeeName: e.target.value})} /><input type="date" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} /><div className="grid grid-cols-2 gap-2"><input placeholder="In: 09:00 AM" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={formData.punchIn} onChange={e => setFormData({...formData, punchIn: e.target.value})} /><input placeholder="Out: 06:00 PM" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={formData.punchOut || ''} onChange={e => setFormData({...formData, punchOut: e.target.value})} /></div><div className="flex space-x-3 pt-2"><button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold shadow-lg shadow-indigo-100">Save Changes</button><button type="button" onClick={onCancel} className="flex-1 bg-slate-100 p-4 rounded-2xl font-bold">Cancel</button></div></form></div></div>
   );
 };
 

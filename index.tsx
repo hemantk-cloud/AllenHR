@@ -2,13 +2,20 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-// Register Service Worker for PWA functionality using relative path
+// Register Service Worker for PWA functionality
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // Using './sw.js' ensures the service worker is registered from the same origin
-    navigator.serviceWorker.register('./sw.js', { scope: './' })
-      .then(registration => console.log('AllenHR: SW registered successfully', registration.scope))
-      .catch(err => console.error('AllenHR: SW registration failed', err));
+    // Use the absolute path relative to the current origin to avoid origin mismatch errors
+    const swUrl = new URL('./sw.js', window.location.href).href;
+    
+    // Only attempt registration if the origins match, otherwise log a clearer message
+    if (new URL(swUrl).origin === window.location.origin) {
+      navigator.serviceWorker.register(swUrl, { scope: './' })
+        .then(registration => console.log('AllenHR: SW registered successfully', registration.scope))
+        .catch(err => console.warn('AllenHR: SW registration skipped or failed', err.message));
+    } else {
+      console.warn('AllenHR: SW registration skipped due to origin mismatch in sandbox environment.');
+    }
   });
 }
 

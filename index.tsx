@@ -5,22 +5,17 @@ import App from './App';
 // Register Service Worker for PWA functionality
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // Determine the Service Worker URL based on current context
+    // Relative path for same-origin registration
     const swUrl = './sw.js';
     
-    // In many hosted environments/sandboxes, SW registration may fail due to origin restrictions.
-    // We check if we are on the same origin before attempting.
-    try {
-      navigator.serviceWorker.register(swUrl, { scope: './' })
-        .then(registration => {
-          console.log('AllenHR: SW registered successfully', registration.scope);
-        })
-        .catch(err => {
-          console.warn('AllenHR: SW registration skipped or failed (common in sandboxed environments):', err.message);
-        });
-    } catch (e) {
-      console.warn('AllenHR: Service Worker initialization skipped.');
-    }
+    // Attempt registration. If it fails due to sandbox restrictions, log but don't crash.
+    navigator.serviceWorker.register(swUrl, { scope: './' })
+      .then(registration => {
+        console.log('AllenHR: SW registered successfully', registration.scope);
+      })
+      .catch(err => {
+        console.warn('AllenHR: Service Worker registration skipped (not supported in this environment):', err.message);
+      });
   });
 }
 

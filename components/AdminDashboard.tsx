@@ -1,20 +1,35 @@
 import React, { useState } from 'react';
 import { Users, UserCheck, Clock, CalendarClock, ExternalLink, MapPin, Camera, X, Trash2 } from 'lucide-react';
-import { AttendanceLog, LeaveRequest } from '../types';
+import { AttendanceLog, LeaveRequest, User } from '../types';
 
 interface AdminDashboardProps {
   attendance: AttendanceLog[];
   leaveRequests: LeaveRequest[];
   onDeleteLog: (id: string) => void;
+  employees: User[];
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ attendance, leaveRequests, onDeleteLog }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ attendance, leaveRequests, onDeleteLog, employees }) => {
   const [viewingSelfie, setViewingSelfie] = useState<string | null>(null);
   
   const today = new Date().toISOString().split('T')[0];
+  
+  // Real computations based on state
   const activePunches = attendance.filter(a => a.date === today && !a.punchOut);
   const presentTodayCount = new Set(attendance.filter(a => a.date === today).map(a => a.employeeId)).size;
   const pendingLeavesCount = leaveRequests.filter(l => l.status === 'pending').length;
+  const totalStaffCount = employees.length;
+  
+  // Simple logic for "Late Comers" (assuming after 9:30 AM is late for demo purposes)
+  const lateComersCount = attendance.filter(a => {
+    if (a.date !== today) return false;
+    const [time, period] = a.punchIn.split(' ');
+    const [hours, minutes] = time.split(':').map(Number);
+    let h = hours;
+    if (period === 'PM' && h !== 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    return (h > 9 || (h === 9 && minutes > 30));
+  }).length;
 
   const openMap = (lat?: number, lng?: number) => {
     if (lat && lng) {
@@ -24,7 +39,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ attendance, leav
 
   return (
     <div className="space-y-6">
-      {/* Global Stats */}
+      {/* Global Stats - Now using real data */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <div className="flex items-center space-x-4">
@@ -33,7 +48,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ attendance, leav
             </div>
             <div>
               <p className="text-sm text-slate-500 font-medium">Total Staff</p>
-              <p className="text-2xl font-bold text-slate-800">42</p>
+              <p className="text-2xl font-bold text-slate-800">{totalStaffCount}</p>
             </div>
           </div>
         </div>
@@ -69,7 +84,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ attendance, leav
             </div>
             <div>
               <p className="text-sm text-slate-500 font-medium">Late Comers</p>
-              <p className="text-2xl font-bold text-slate-800">3</p>
+              <p className="text-2xl font-bold text-slate-800">{lateComersCount}</p>
             </div>
           </div>
         </div>
@@ -152,7 +167,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ attendance, leav
                   </div>
                 </div>
                 <button className="text-indigo-600 hover:underline text-sm font-semibold flex items-center space-x-1">
-                  <span>Manage</span>
+                  <span>View Details</span>
                   <ExternalLink size={14} />
                 </button>
               </div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'allenhr-v4';
+const CACHE_NAME = 'allenhr-v5';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -28,13 +28,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests for internal resources
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache new assets if they are successful
         if (response.status === 200 && event.request.url.startsWith(self.location.origin)) {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -44,7 +42,6 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        // Fallback to cache
         return caches.match(event.request).then((cachedResponse) => {
           if (cachedResponse) return cachedResponse;
           if (event.request.mode === 'navigate') {

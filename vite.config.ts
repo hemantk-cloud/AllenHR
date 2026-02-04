@@ -4,8 +4,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Definitive fix for 'process is not defined' errors on mobile
-    'process.env': '({})',
+    // Fixed: Using a valid JS literal string '{}' instead of '({})'
+    'process.env': '{}',
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ''),
     'global': 'window',
   },

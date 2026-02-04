@@ -110,6 +110,10 @@ const App: React.FC = () => {
     
     if (foundUser) {
       setUser(foundUser);
+      // Check if already punched in today
+      const today = new Date().toISOString().split('T')[0];
+      const punchedIn = attendance.some(a => a.employeeId === foundUser.id && a.date === today && !a.punchOut);
+      setIsPunchedIn(punchedIn);
       setActiveTab('dashboard');
     } else {
       setLoginError("Access Denied: This email is not registered. Please contact your HR Admin.");
@@ -141,12 +145,16 @@ const App: React.FC = () => {
       setIsPunchedIn(true);
     } else {
       const updatedLogs = [...attendance];
-      const myRecent = updatedLogs.find(l => l.employeeId === user.id && !l.punchOut);
-      if (myRecent) {
-        myRecent.punchOut = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        myRecent.locationOut = location;
-        myRecent.selfieOut = selfie;
-        myRecent.totalHours = 8.5; 
+      const today = new Date().toISOString().split('T')[0];
+      const myRecentIndex = updatedLogs.findIndex(l => l.employeeId === user.id && l.date === today && !l.punchOut);
+      if (myRecentIndex !== -1) {
+        updatedLogs[myRecentIndex] = {
+          ...updatedLogs[myRecentIndex],
+          punchOut: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          locationOut: location,
+          selfieOut: selfie,
+          totalHours: 8.5 // In real app, calculate diff between In and Out
+        };
       }
       setAttendance(updatedLogs);
       setIsPunchedIn(false);
@@ -266,7 +274,7 @@ const App: React.FC = () => {
     if (user.role === 'admin') {
       switch (activeTab) {
         case 'dashboard':
-          return <AdminDashboard attendance={attendance} leaveRequests={leaveRequests} onDeleteLog={setDeletingLogId} />;
+          return <AdminDashboard attendance={attendance} leaveRequests={leaveRequests} onDeleteLog={setDeletingLogId} employees={employees} />;
         case 'staff':
           return (
             <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
@@ -288,7 +296,7 @@ const App: React.FC = () => {
                       <th className="px-4 py-4">Designation</th>
                       <th className="px-4 py-4">Dept</th>
                       <th className="px-4 py-4">Role</th>
-                      <th className="px-4 py-4">Leaves</th>
+                      <th className="px-4 py-4">Leaves Allotted</th>
                       <th className="px-4 py-4 text-center">Actions</th>
                     </tr>
                   </thead>
@@ -307,7 +315,11 @@ const App: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-4 py-4 text-[10px] font-bold text-slate-500">
-                          S:{emp.leaveBalance.sick} | C:{emp.leaveBalance.casual} | V:{emp.leaveBalance.vacation}
+                          <div className="flex space-x-2">
+                             <span className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">S:{emp.leaveBalance.sick}</span>
+                             <span className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">C:{emp.leaveBalance.casual}</span>
+                             <span className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">V:{emp.leaveBalance.vacation}</span>
+                          </div>
                         </td>
                         <td className="px-4 py-4 text-center">
                           <div className="flex items-center justify-center space-x-2">
@@ -395,7 +407,7 @@ const App: React.FC = () => {
         case 'assistant':
           return <Assistant user={user} attendance={attendance} />;
         default:
-          return <AdminDashboard attendance={attendance} leaveRequests={leaveRequests} onDeleteLog={setDeletingLogId} />;
+          return <AdminDashboard attendance={attendance} leaveRequests={leaveRequests} onDeleteLog={setDeletingLogId} employees={employees} />;
       }
     }
 

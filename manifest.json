@@ -1,12 +1,19 @@
 {
   "short_name": "AllenHR",
   "name": "AllenHR Management System",
+  "description": "Official Employee Attendance and Leave Management System for AllenHR.",
   "icons": [
     {
       "src": "https://ui-avatars.com/api/?name=A&background=4f46e5&color=fff&size=192",
       "type": "image/png",
       "sizes": "192x192",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "https://ui-avatars.com/api/?name=A&background=4f46e5&color=fff&size=192",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
     },
     {
       "src": "https://ui-avatars.com/api/?name=A&background=4f46e5&color=fff&size=512",
@@ -16,10 +23,19 @@
     }
   ],
   "start_url": "/",
-  "background_color": "#4f46e5",
+  "background_color": "#f8fafc",
   "display": "standalone",
   "orientation": "portrait",
   "scope": "/",
   "theme_color": "#4f46e5",
-  "description": "Employee Attendance and Leave Management System for AllenHR."
+  "categories": ["business", "productivity"],
+  "screenshots": [
+    {
+      "src": "https://ui-avatars.com/api/?name=App+Preview&background=4f46e5&color=fff&size=1080",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Homescreen"
+    }
+  ]
 }

@@ -39,7 +39,7 @@ const INITIAL_EMPLOYEES: User[] = [
     role: 'admin',
     designation: 'HR Administrator',
     department: 'Human Resources',
-    leaveBalance: { sick: 10, casual: 10, vacation: 15 }
+    leaveBalance: { privilege: 15, comp_off: 0, bereavement: 5 }
   }
 ];
 
@@ -64,12 +64,9 @@ const App: React.FC = () => {
     const saved = localStorage.getItem(STORAGE_KEYS.USER);
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Re-fetch from latest list to sync data changes
-      const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.DB_EMPLOYEES) || '[]');
-      const found = list.find((e: any) => e.email === parsed.email);
-      if (found) return found;
-      // If not found in dynamic list, check initial list
-      return INITIAL_EMPLOYEES.find(e => e.email === parsed.email) || null;
+      const savedEmployees = localStorage.getItem(STORAGE_KEYS.DB_EMPLOYEES);
+      const list: User[] = savedEmployees ? JSON.parse(savedEmployees) : INITIAL_EMPLOYEES;
+      return list.find(e => e.email === parsed.email) || null;
     }
     return null;
   });
@@ -117,7 +114,7 @@ const App: React.FC = () => {
     if (found) {
       setUser(found);
     } else {
-      setLoginError("Account not recognized on this device.");
+      setLoginError("Access Denied. Ensure your email is registered or contact HR.");
     }
   };
 
@@ -243,18 +240,18 @@ const App: React.FC = () => {
 
       {activeTab === 'staff' && user.role === 'admin' && (
         <div className="space-y-8">
-          {/* Sync Key Section - Moved here as requested */}
+          {/* Admin Setup Sync Hub */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden group">
                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-xl group-hover:scale-150 transition-transform duration-700"></div>
                <div className="relative z-10">
                  <h3 className="text-xl font-black mb-1 flex items-center space-x-2">
                    <Database size={20} />
-                   <span>Export Sync Key</span>
+                   <span>Export Master Sync Key</span>
                  </h3>
-                 <p className="text-indigo-100 text-xs mb-6 font-medium">Use this to sync other devices with current data.</p>
+                 <p className="text-indigo-100 text-xs mb-6 font-medium">Generate a key to move this company's data to another device.</p>
                  <button onClick={generateSyncCode} className="w-full bg-white text-indigo-600 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">
-                   Generate Master Key
+                   Generate Key
                  </button>
                </div>
             </div>
@@ -262,12 +259,12 @@ const App: React.FC = () => {
             <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
                <h3 className="text-xl font-black text-slate-800 mb-1 flex items-center space-x-2">
                  <ArrowLeftRight size={20} className="text-indigo-600" />
-                 <span>Import/Setup Data</span>
+                 <span>Import Device Setup</span>
                </h3>
-               <p className="text-slate-400 text-xs mb-6 font-medium">Paste a Sync Key from another device to update local DB.</p>
+               <p className="text-slate-400 text-xs mb-6 font-medium">Paste a Sync Key from your main admin device to setup this machine.</p>
                <div className="flex space-x-2">
                  <input 
-                    placeholder="Paste Master Key here..."
+                    placeholder="Paste Master Key..."
                     className="flex-1 bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-500"
                     value={syncCodeInput}
                     onChange={e => setSyncCodeInput(e.target.value)}
@@ -277,7 +274,7 @@ const App: React.FC = () => {
                   className="bg-slate-900 text-white px-6 rounded-2xl text-xs font-bold active:scale-95 transition-all flex items-center space-x-2"
                  >
                    <Download size={14} />
-                   <span>Import</span>
+                   <span>Setup Device</span>
                  </button>
                </div>
             </div>
@@ -287,7 +284,7 @@ const App: React.FC = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
               <div>
                 <h3 className="text-2xl font-black text-slate-800 tracking-tight">Staff Management</h3>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.1em] mt-1">{employees.length} Registered Identities</p>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.1em] mt-1">{employees.length} Authorized Identities</p>
               </div>
               <button 
                 onClick={() => setIsAddingEmployee(true)}
@@ -304,8 +301,8 @@ const App: React.FC = () => {
                   <tr className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
                     <th className="px-6 py-5">Full Name & Email</th>
                     <th className="px-6 py-5">Department</th>
-                    <th className="px-6 py-5 text-center">Identity Status</th>
-                    <th className="px-6 py-5 text-center">Management</th>
+                    <th className="px-6 py-5 text-center">Status</th>
+                    <th className="px-6 py-5 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -353,12 +350,12 @@ const App: React.FC = () => {
       {activeTab === 'attendance' && <AttendanceCalendar logs={attendance.filter(a => a.employeeId === user.id)} />}
       {activeTab === 'leave' && <LeaveTracker user={user} requests={leaveRequests.filter(l => l.employeeId === user.id)} onRequest={req => setLeaveRequests([...leaveRequests, {...req, id: Math.random().toString(), employeeId: user.id, employeeName: user.name, status: 'pending', appliedDate: new Date().toISOString()} as LeaveRequest])} />}
 
-      {/* Sync Key Modal Overlay */}
+      {/* Sync Key Modal */}
       {showSyncModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-10 animate-in zoom-in duration-300">
             <h3 className="text-2xl font-black mb-4 text-slate-800">Master Sync Key</h3>
-            <p className="text-sm text-slate-500 mb-6 leading-relaxed">Copy this key and paste it on your Chrome tab to migrate all data instantly.</p>
+            <p className="text-sm text-slate-500 mb-6 leading-relaxed">Copy this key and paste it on another device to sync all data instantly.</p>
             
             <div className="relative mb-8 group">
               <textarea 
@@ -383,13 +380,14 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Staff Modals */}
+      {/* Register Staff Modal */}
       {isAddingEmployee && (
         <AddEmployeeModal 
           onSave={emp => { setEmployees([...employees, emp]); setIsAddingEmployee(false); }} 
           onCancel={() => setIsAddingEmployee(false)} 
         />
       )}
+      {/* Edit Staff Modal */}
       {editingEmployee && (
         <EditEmployeeModal 
           employee={editingEmployee} 
@@ -409,9 +407,9 @@ const AddEmployeeModal: React.FC<{onSave: (emp: User) => void, onCancel: () => v
       <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-10 animate-in zoom-in duration-200">
         <h3 className="text-2xl font-black mb-8 flex items-center space-x-3">
           <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Plus size={24} /></div>
-          <span>Identity Creation</span>
+          <span>Enroll New Staff</span>
         </h3>
-        <form onSubmit={e => { e.preventDefault(); onSave({...data, leaveBalance: { sick: 10, casual: 10, vacation: 15 }}); }} className="space-y-4">
+        <form onSubmit={e => { e.preventDefault(); onSave({...data, leaveBalance: { privilege: 15, comp_off: 0, bereavement: 5 }}); }} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <input required placeholder="Staff ID" className="p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono" value={data.id} onChange={e => setData({...data, id: e.target.value.toUpperCase()})} />
             <input required placeholder="Department" className="p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
@@ -446,13 +444,22 @@ const EditEmployeeModal: React.FC<{employee: User, onSave: (emp: User) => void, 
                <span>Available Leaves</span>
              </p>
              <div className="grid grid-cols-3 gap-3">
-               <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 uppercase ml-1">Sick</label><input type="number" className="w-full p-3 rounded-xl font-black text-center text-indigo-600" value={data.leaveBalance.sick} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, sick: parseInt(e.target.value)||0}})}/></div>
-               <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 uppercase ml-1">Casu</label><input type="number" className="w-full p-3 rounded-xl font-black text-center text-indigo-600" value={data.leaveBalance.casual} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, casual: parseInt(e.target.value)||0}})}/></div>
-               <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 uppercase ml-1">Vaca</label><input type="number" className="w-full p-3 rounded-xl font-black text-center text-indigo-600" value={data.leaveBalance.vacation} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, vacation: parseInt(e.target.value)||0}})}/></div>
+               <div className="space-y-1">
+                 <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Privilege</label>
+                 <input type="number" className="w-full p-3 rounded-xl font-black text-center text-indigo-600" value={data.leaveBalance.privilege} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, privilege: parseInt(e.target.value)||0}})}/>
+               </div>
+               <div className="space-y-1">
+                 <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Comp OFF</label>
+                 <input type="number" className="w-full p-3 rounded-xl font-black text-center text-indigo-600" value={data.leaveBalance.comp_off} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, comp_off: parseInt(e.target.value)||0}})}/>
+               </div>
+               <div className="space-y-1">
+                 <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Bereave</label>
+                 <input type="number" className="w-full p-3 rounded-xl font-black text-center text-indigo-600" value={data.leaveBalance.bereavement} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, bereavement: parseInt(e.target.value)||0}})}/>
+               </div>
              </div>
           </div>
           <div className="flex space-x-3 pt-6">
-            <button type="submit" className="flex-1 bg-slate-900 text-white p-4 rounded-2xl font-black shadow-lg">Save Update</button>
+            <button type="submit" className="flex-1 bg-slate-900 text-white p-4 rounded-2xl font-black shadow-lg">Save Changes</button>
             <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 p-4 rounded-2xl font-black text-slate-400">Cancel</button>
           </div>
         </form>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
@@ -153,7 +154,7 @@ const App: React.FC = () => {
           punchOut: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           locationOut: location,
           selfieOut: selfie,
-          totalHours: 8.5 // In real app, calculate diff between In and Out
+          totalHours: 8.5
         };
       }
       setAttendance(updatedLogs);

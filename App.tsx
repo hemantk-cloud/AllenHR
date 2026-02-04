@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { AdminDashboard } from './components/AdminDashboard';
@@ -18,19 +18,21 @@ import {
   ShieldAlert,
   Hash,
   Cloud,
-  CloudOff,
   RefreshCw,
-  Link as LinkIcon,
-  CheckCircle2,
-  CalendarCheck2,
-  Settings,
-  Globe,
-  Database
+  Copy,
+  ClipboardCheck,
+  Zap,
+  ChevronRight,
+  Database,
+  ArrowLeftRight
 } from 'lucide-react';
 
 const STORAGE_KEYS = {
   USER: 'allen_hr_user',
-  SYNC_ID: 'allen_hr_sync_id',
+  DB_EMPLOYEES: 'allen_hr_employees_v2',
+  DB_ATTENDANCE: 'allen_hr_attendance_v2',
+  DB_LEAVES: 'allen_hr_leaves_v2',
+  INITIALIZED: 'allen_hr_init'
 };
 
 const INITIAL_EMPLOYEES: User[] = [
@@ -46,17 +48,35 @@ const INITIAL_EMPLOYEES: User[] = [
 ];
 
 const App: React.FC = () => {
-  // --- Cloud Sync State ---
-  const [syncId, setSyncId] = useState<string | null>(() => localStorage.getItem(STORAGE_KEYS.SYNC_ID));
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  // --- Persistent States ---
+  const [employees, setEmployees] = useState<User[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.DB_EMPLOYEES);
+    return saved ? JSON.parse(saved) : INITIAL_EMPLOYEES;
+  });
 
-  // --- Core Data State ---
-  const [employees, setEmployees] = useState<User[]>(INITIAL_EMPLOYEES);
-  const [attendance, setAttendance] = useState<AttendanceLog[]>([]);
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
-  const [user, setUser] = useState<User | null>(null);
+  const [attendance, setAttendance] = useState<AttendanceLog[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.DB_ATTENDANCE);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.DB_LEAVES);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [user, setUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.USER);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Re-fetch from the latest employees list in case data was synced
+      const savedEmployees = localStorage.getItem(STORAGE_KEYS.DB_EMPLOYEES);
+      const list: User[] = savedEmployees ? JSON.parse(savedEmployees) : INITIAL_EMPLOYEES;
+      return list.find(e => e.email === parsed.email) || null;
+    }
+    return null;
+  });
+
+  const [isInitialized, setIsInitialized] = useState(() => localStorage.getItem(STORAGE_KEYS.INITIALIZED) === 'true');
 
   // --- UI State ---
   const [loginEmail, setLoginEmail] = useState('');
@@ -64,122 +84,28 @@ const App: React.FC = () => {
   const [isPunchedIn, setIsPunchedIn] = useState(false);
   const [isPunching, setIsPunching] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [setupSyncInput, setSetupSyncInput] = useState('');
-  const [isSettingUpManual, setIsSettingUpManual] = useState(false);
-
-  // --- Modals State ---
-  const [isAddingEmployee, setIsAddingEmployee] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<User | null>(null);
-  const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
-
-  // --- Cloud Sync Logic ---
-  const pushToCloud = useCallback(async (data: { employees: User[], attendance: AttendanceLog[], leaves: LeaveRequest[] }) => {
-    if (!syncId) return;
-    setIsSyncing(true);
-    setSyncError(null);
-    try {
-      const response = await fetch(`https://jsonblob.com/api/jsonBlob/${syncId}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(data)
-      });
-      if (!response.ok) throw new Error(`Server responded with ${response.status}`);
-      setLastSyncTime(new Date());
-    } catch (err: any) {
-      console.error("Cloud Push Failed", err);
-      setSyncError("Update failed. Check your internet connection.");
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [syncId]);
-
-  const pullFromCloud = useCallback(async (idToUse: string) => {
-    setIsSyncing(true);
-    setSyncError(null);
-    try {
-      const res = await fetch(`https://jsonblob.com/api/jsonBlob/${idToUse}`, {
-        headers: { 'Accept': 'application/json' }
-      });
-      if (!res.ok) throw new Error("Database not found or Sync ID expired.");
-      const data = await res.json();
-      if (data.employees) setEmployees(data.employees);
-      if (data.attendance) setAttendance(data.attendance);
-      if (data.leaves) setLeaveRequests(data.leaves);
-      setLastSyncTime(new Date());
-      return true;
-    } catch (err: any) {
-      setSyncError(err.message || "Failed to download data.");
-      return false;
-    } finally {
-      setIsSyncing(false);
-    }
-  }, []);
-
-  const initializeCloud = async () => {
-    setIsSyncing(true);
-    setSyncError(null);
-    try {
-      // POST returns the new location in headers
-      const res = await fetch(`https://jsonblob.com/api/jsonBlob`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ employees, attendance, leaves: leaveRequests })
-      });
-      
-      const location = res.headers.get('Location');
-      if (location) {
-        const id = location.split('/').pop() || '';
-        setSyncId(id);
-        localStorage.setItem(STORAGE_KEYS.SYNC_ID, id);
-      } else {
-        // Fallback: If browser hides Location header due to CORS, suggest manual ID or retry
-        throw new Error("Cloud ID generated but hidden by browser security. Please try 'Manual Setup'.");
-      }
-    } catch (err: any) {
-      setSyncError(err.message || "Network Error: Cloud initialization failed.");
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const connectToCloud = async (id: string) => {
-    const success = await pullFromCloud(id);
-    if (success) {
-      setSyncId(id);
-      localStorage.setItem(STORAGE_KEYS.SYNC_ID, id);
-      setSyncError(null);
-    }
-  };
+  
+  // --- Manual Sync State ---
+  const [syncCodeInput, setSyncCodeInput] = useState('');
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   // --- Effects ---
   useEffect(() => {
-    if (syncId) {
-      pullFromCloud(syncId);
-      const interval = setInterval(() => pullFromCloud(syncId), 60000);
-      return () => clearInterval(interval);
-    }
-  }, [syncId, pullFromCloud]);
-
-  useEffect(() => {
-    const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
-    if (savedUser) {
-      const parsed = JSON.parse(savedUser);
-      const verified = employees.find(e => e.email === parsed.email);
-      if (verified) setUser(verified);
-    }
-  }, [employees]);
+    localStorage.setItem(STORAGE_KEYS.DB_EMPLOYEES, JSON.stringify(employees));
+    localStorage.setItem(STORAGE_KEYS.DB_ATTENDANCE, JSON.stringify(attendance));
+    localStorage.setItem(STORAGE_KEYS.DB_LEAVES, JSON.stringify(leaveRequests));
+  }, [employees, attendance, leaveRequests]);
 
   useEffect(() => {
     if (user) {
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
       const today = new Date().toISOString().split('T')[0];
-      const punchedIn = attendance.some(a => a.employeeId === user.id && a.date === today && !a.punchOut);
-      setIsPunchedIn(punchedIn);
+      const punched = attendance.some(a => a.employeeId === user.id && a.date === today && !a.punchOut);
+      setIsPunchedIn(punched);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.USER);
     }
   }, [user, attendance]);
 
@@ -190,17 +116,43 @@ const App: React.FC = () => {
     const found = employees.find(emp => emp.email.toLowerCase() === loginEmail.toLowerCase());
     if (found) {
       setUser(found);
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(found));
     } else {
-      setLoginError("Staff record not found. Ask your Admin to add you on their device.");
+      setLoginError("Account not found. Please sync your data from the Admin phone first.");
     }
   };
 
-  const handleUpdateAndPush = (newEmps: User[], newAtt: AttendanceLog[], newLeaves: LeaveRequest[]) => {
-    setEmployees(newEmps);
-    setAttendance(newAtt);
-    setLeaveRequests(newLeaves);
-    if (syncId) pushToCloud({ employees: newEmps, attendance: newAtt, leaves: newLeaves });
+  const generateSyncCode = () => {
+    const db = {
+      e: employees,
+      a: attendance,
+      l: leaveRequests,
+      v: '2.0',
+      t: Date.now()
+    };
+    // Base64 encode to make it look like a real key
+    const code = btoa(JSON.stringify(db));
+    setGeneratedCode(code);
+    setShowSyncModal(true);
+  };
+
+  const importSyncCode = (code: string) => {
+    try {
+      const decoded = JSON.parse(atob(code));
+      if (decoded.e && decoded.a) {
+        setEmployees(decoded.e);
+        setAttendance(decoded.a);
+        setLeaveRequests(decoded.l || []);
+        setIsInitialized(true);
+        localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+        alert("Sync Successful! All employee data and logs updated.");
+        setShowSyncModal(false);
+        setSyncCodeInput('');
+      } else {
+        throw new Error("Invalid structure");
+      }
+    } catch (err) {
+      alert("Invalid Sync Code. Please ensure you copied the whole text.");
+    }
   };
 
   const handlePunch = async (location: { lat: number; lng: number }, selfie: string) => {
@@ -208,7 +160,6 @@ const App: React.FC = () => {
     setIsPunching(true);
     await new Promise(r => setTimeout(r, 800));
     
-    let newAttendance = [...attendance];
     if (!isPunchedIn) {
       const newLog: AttendanceLog = {
         id: Math.random().toString(36).substr(2, 9),
@@ -219,154 +170,144 @@ const App: React.FC = () => {
         locationIn: location,
         selfieIn: selfie
       };
-      newAttendance = [newLog, ...newAttendance];
+      setAttendance([newLog, ...attendance]);
     } else {
       const today = new Date().toISOString().split('T')[0];
-      const idx = newAttendance.findIndex(l => l.employeeId === user.id && l.date === today && !l.punchOut);
+      const updated = [...attendance];
+      const idx = updated.findIndex(l => l.employeeId === user.id && l.date === today && !l.punchOut);
       if (idx !== -1) {
-        newAttendance[idx] = {
-          ...newAttendance[idx],
+        updated[idx] = {
+          ...updated[idx],
           punchOut: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           locationOut: location,
           selfieOut: selfie,
           totalHours: 8.5
         };
       }
+      setAttendance(updated);
     }
-    handleUpdateAndPush(employees, newAttendance, leaveRequests);
     setIsPunching(false);
   };
 
-  // --- Setup Screens ---
-  if (!syncId && !user) {
+  // --- Initial Setup Wizard ---
+  if (!isInitialized) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden">
+        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in duration-500">
           <div className="bg-indigo-600 p-10 text-center text-white relative">
-            <h1 className="text-3xl font-black tracking-tighter mb-2">AllenHR</h1>
-            <p className="text-indigo-100 text-sm font-medium">Cloud Connectivity Wizard</p>
+            <h1 className="text-4xl font-black tracking-tighter mb-2">AllenHR</h1>
+            <p className="text-indigo-100 text-sm font-medium">Internal Portal Setup</p>
           </div>
-          
           <div className="p-8 space-y-6">
-            {!isSettingUpManual ? (
-              <div className="space-y-6 animate-in fade-in duration-300">
-                <div className="text-center space-y-2">
-                  <div className="mx-auto w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-4">
-                    <Globe size={24} />
-                  </div>
-                  <p className="text-slate-600 text-sm font-medium leading-relaxed">
-                    Employees: Enter the <b>Sync ID</b> from your Admin.<br/>
-                    Admins: Initialize your cloud below.
-                  </p>
+            <div className="text-center space-y-2">
+              <h2 className="text-xl font-bold text-slate-800">Welcome!</h2>
+              <p className="text-slate-500 text-sm">Choose how you'd like to start on this device.</p>
+            </div>
+
+            <button 
+              onClick={() => { setIsInitialized(true); localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true'); }}
+              className="w-full flex items-center justify-between p-5 bg-white border-2 border-slate-100 hover:border-indigo-600 rounded-3xl transition-all group"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                  <Zap size={24} />
                 </div>
-
-                <div className="space-y-3">
-                  <div className="relative">
-                    <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input 
-                      placeholder="Enter Sync ID (e.g. 112233...)"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
-                      value={setupSyncInput}
-                      onChange={e => setSetupSyncInput(e.target.value)}
-                    />
-                  </div>
-                  <button 
-                    onClick={() => connectToCloud(setupSyncInput)}
-                    disabled={!setupSyncInput || isSyncing}
-                    className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg flex items-center justify-center space-x-2 active:scale-95 transition-all"
-                  >
-                    {isSyncing ? <RefreshCw className="animate-spin" /> : <Cloud size={20} />}
-                    <span>Connect to Company</span>
-                  </button>
-                </div>
-
-                {syncError && (
-                  <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start space-x-3">
-                    <AlertTriangle className="text-rose-500 shrink-0" size={18} />
-                    <div className="space-y-1">
-                      <p className="text-xs font-bold text-rose-600">Connection Error</p>
-                      <p className="text-[11px] text-rose-500 font-medium leading-tight">{syncError}</p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="pt-4 border-t border-slate-100 flex flex-col space-y-2">
-                  <button 
-                    onClick={initializeCloud} 
-                    className="text-xs text-indigo-600 font-bold hover:bg-indigo-50 py-2 rounded-lg transition-all"
-                  >
-                    Set up New Admin Cloud
-                  </button>
-                  <button 
-                    onClick={() => setIsSettingUpManual(true)} 
-                    className="text-[10px] text-slate-400 font-bold uppercase tracking-widest"
-                  >
-                    Network Issues? Use Manual Setup
-                  </button>
+                <div className="text-left">
+                  <p className="font-bold text-slate-800">Create New Space</p>
+                  <p className="text-xs text-slate-400">Start fresh as an Admin</p>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                 <div className="space-y-2">
-                   <h3 className="font-bold text-slate-800 flex items-center space-x-2">
-                     <Settings size={18} className="text-indigo-600" />
-                     <span>Manual Setup</span>
-                   </h3>
-                   <p className="text-xs text-slate-500">If your browser blocks automatic ID generation, you can manually enter an existing Cloud ID here.</p>
-                 </div>
-                 <input 
-                    placeholder="Existing Cloud ID"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
-                    value={setupSyncInput}
-                    onChange={e => setSetupSyncInput(e.target.value)}
-                  />
-                  <div className="flex space-x-2">
-                    <button 
-                      onClick={() => connectToCloud(setupSyncInput)}
-                      className="flex-1 bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-md"
-                    >
-                      Connect
-                    </button>
-                    <button 
-                      onClick={() => setIsSettingUpManual(false)}
-                      className="px-4 bg-slate-100 text-slate-500 font-bold py-3 rounded-xl"
-                    >
-                      Back
-                    </button>
-                  </div>
+              <ChevronRight className="text-slate-300" />
+            </button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-100"></span></div>
+              <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-3 text-slate-400 font-bold">Recommended</span></div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="text-center">
+                <p className="text-xs font-bold text-indigo-600 mb-2 flex items-center justify-center space-x-1 uppercase tracking-widest">
+                  <ArrowLeftRight size={12} />
+                  <span>Sync from Phone</span>
+                </p>
+                <textarea 
+                  placeholder="Paste your Sync Code here..."
+                  className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-mono resize-none custom-scrollbar"
+                  value={syncCodeInput}
+                  onChange={e => setSyncCodeInput(e.target.value)}
+                />
               </div>
-            )}
+              <button 
+                onClick={() => importSyncCode(syncCodeInput)}
+                disabled={!syncCodeInput}
+                className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center space-x-2"
+              >
+                <RefreshCw size={18} />
+                <span>Import Database</span>
+              </button>
+            </div>
+            
+            <p className="text-[10px] text-center text-slate-400 italic">Syncing ensures all 5+ employees appear correctly on this Chrome tab.</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // --- Main Layout ---
-  return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={() => { setUser(null); localStorage.removeItem(STORAGE_KEYS.USER); }}>
-      <div className="mb-6 flex flex-wrap gap-2">
-        <div className={`flex items-center space-x-1.5 px-4 py-1.5 rounded-full text-[11px] font-black border transition-all ${
-          isSyncing ? 'bg-indigo-50 text-indigo-600 border-indigo-100 animate-pulse' : 
-          syncError ? 'bg-rose-50 text-rose-600 border-rose-100' :
-          'bg-emerald-50 text-emerald-600 border-emerald-100'
-        }`}>
-          {isSyncing ? <RefreshCw size={12} className="animate-spin" /> : syncError ? <CloudOff size={12} /> : <Cloud size={12} />}
-          <span className="uppercase tracking-widest">
-            {isSyncing ? 'Synchronizing...' : syncError ? 'Connection Lost' : 'Live Sync Active'}
-          </span>
-        </div>
-        
-        {lastSyncTime && !syncError && (
-          <div className="px-4 py-1.5 bg-slate-100 text-slate-500 rounded-full text-[10px] font-bold border border-slate-200">
-            LAST SYNC: {lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+  // --- Login Screen ---
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden">
+          <div className="bg-indigo-600 p-10 text-center text-white relative">
+            <h1 className="text-3xl font-black tracking-tighter mb-2">AllenHR</h1>
+            <p className="text-indigo-100 text-xs font-bold uppercase tracking-widest">{employees.length} Staff Registered</p>
           </div>
-        )}
-      </div>
+          <form onSubmit={handleLogin} className="p-10 space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 ml-1">Identity Check</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <input 
+                  type="email" required placeholder="your.name@allen.in"
+                  value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium"
+                />
+              </div>
+            </div>
 
+            {loginError && (
+              <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl text-xs font-bold border border-rose-100 flex items-start space-x-2">
+                <ShieldAlert size={14} className="shrink-0 mt-0.5" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-100 transition-all active:scale-95">
+              Access Dashboard
+            </button>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-center">
+              <button 
+                type="button" 
+                onClick={() => { localStorage.removeItem(STORAGE_KEYS.INITIALIZED); setIsInitialized(false); }}
+                className="text-[10px] text-slate-400 font-bold hover:text-indigo-600 uppercase tracking-widest"
+              >
+                Wrong Space? Change Sync Source
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Layout activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={() => setUser(null)}>
       {activeTab === 'dashboard' && (
         user.role === 'admin' ? 
-        <AdminDashboard attendance={attendance} leaveRequests={leaveRequests} onDeleteLog={id => handleUpdateAndPush(employees, attendance.filter(a => a.id !== id), leaveRequests)} employees={employees} /> :
+        <AdminDashboard attendance={attendance} leaveRequests={leaveRequests} onDeleteLog={id => setAttendance(attendance.filter(a => a.id !== id))} employees={employees} /> :
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           <div className="xl:col-span-2"><Dashboard attendance={attendance.filter(a => a.employeeId === user.id)} leaveRequests={leaveRequests.filter(l => l.employeeId === user.id)} /></div>
           <div className="xl:col-span-1"><PunchCard isPunchedIn={isPunchedIn} onPunch={handlePunch} isLoading={isPunching} /></div>
@@ -375,84 +316,57 @@ const App: React.FC = () => {
 
       {activeTab === 'staff' && user.role === 'admin' && (
         <div className="space-y-6">
-          <div className="bg-gradient-to-r from-indigo-600 to-violet-700 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between shadow-2xl relative overflow-hidden">
+          <div className="bg-indigo-600 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between shadow-xl relative overflow-hidden">
              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-xl"></div>
              <div className="relative z-10 text-center md:text-left mb-6 md:mb-0">
-               <div className="flex items-center space-x-2 justify-center md:justify-start mb-1 opacity-80 uppercase tracking-widest text-[10px] font-black">
-                 <Database size={12} />
-                 <span>Company Cloud ID</span>
-               </div>
-               <h3 className="text-3xl font-black font-mono tracking-tight">{syncId}</h3>
-               <p className="text-indigo-100 text-xs mt-1 font-medium italic">Share this ID with staff for initial device setup.</p>
+               <h3 className="text-2xl font-black tracking-tight">Data Synchronization</h3>
+               <p className="text-indigo-100 text-sm mt-1">Copy your data to other devices manually to bypass network issues.</p>
              </div>
-             <div className="flex space-x-3">
-               <button 
-                 onClick={() => pullFromCloud(syncId!)} 
-                 className="flex items-center space-x-2 px-6 py-4 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-2xl transition-all font-bold text-sm"
-               >
-                  <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
-                  <span>Manual Refresh</span>
-               </button>
-               <button 
-                 onClick={() => { if(confirm("Discard current Cloud ID and start fresh?")) { localStorage.removeItem(STORAGE_KEYS.SYNC_ID); window.location.reload(); } }}
-                 className="p-4 bg-rose-500/20 hover:bg-rose-500/40 rounded-2xl transition-all"
-                 title="Cloud Settings"
-               >
-                 <Settings size={20} />
-               </button>
-             </div>
+             <button 
+              onClick={generateSyncCode}
+              className="bg-white text-indigo-600 px-6 py-4 rounded-2xl font-black text-sm flex items-center space-x-2 shadow-lg active:scale-95 transition-all"
+             >
+               <Database size={18} />
+               <span>Generate Sync Code</span>
+             </button>
           </div>
 
           <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
             <div className="flex justify-between items-center mb-8">
               <div>
-                <h3 className="text-xl font-bold text-slate-800">Team Directory</h3>
-                <p className="text-xs text-slate-400 font-medium">Manage all registered staff members</p>
+                <h3 className="text-xl font-bold text-slate-800">Staff Management</h3>
+                <p className="text-xs text-slate-400 font-medium">Currently managing {employees.length} staff members</p>
               </div>
-              <button onClick={() => setIsAddingEmployee(true)} className="bg-indigo-600 text-white px-5 py-3 rounded-2xl flex items-center space-x-2 font-bold text-sm shadow-xl shadow-indigo-100 active:scale-95 transition-all">
+              <button className="bg-indigo-600 text-white px-5 py-3 rounded-2xl flex items-center space-x-2 font-bold text-sm shadow-xl shadow-indigo-100">
                 <Plus size={20} />
-                <span>Add Member</span>
+                <span>Register Staff</span>
               </button>
             </div>
+            
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="border-b border-slate-100">
                   <tr className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                    <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4">Employee</th>
                     <th className="px-6 py-4">Department</th>
-                    <th className="px-6 py-4 text-center">Actions</th>
+                    <th className="px-6 py-4 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {employees.map(emp => (
-                    <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <span className={`w-2.5 h-2.5 rounded-full inline-block ${emp.id === user.id ? 'bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.5)]' : 'bg-slate-200'}`}></span>
+                    <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 flex items-center space-x-3">
+                         <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs">
+                           {emp.name.split(' ').map(n => n[0]).join('')}
+                         </div>
+                         <div>
+                           <p className="text-sm font-bold text-slate-800">{emp.name}</p>
+                           <p className="text-[10px] text-slate-400 font-mono">{emp.id}</p>
+                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs uppercase">
-                            {emp.name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-slate-800">{emp.name}</p>
-                            <p className="text-[10px] text-slate-400 font-mono">{emp.id}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-slate-500">{emp.department}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-slate-500">{emp.department}</td>
                       <td className="px-6 py-4 text-center">
-                        <div className="flex items-center justify-center space-x-1">
-                          <button onClick={() => setEditingEmployee(emp)} className="p-3 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"><Edit2 size={16}/></button>
-                          <button 
-                            onClick={() => { if(confirm(`Revoke access for ${emp.name}?`)) handleUpdateAndPush(employees.filter(e => e.id !== emp.id), attendance, leaveRequests); }} 
-                            className="p-3 text-slate-300 hover:text-rose-600 transition-colors"
-                            disabled={emp.id === user.id}
-                          >
-                            <Trash2 size={16}/>
-                          </button>
-                        </div>
+                        <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase px-2 py-1 rounded-full border border-emerald-100">Active</span>
                       </td>
                     </tr>
                   ))}
@@ -463,96 +377,45 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'attendance' && (
-        user.role === 'admin' ? 
-        <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm text-center">
-          <Globe size={48} className="mx-auto text-indigo-100 mb-4" />
-          <h3 className="text-xl font-bold text-slate-800">Historical Records</h3>
-          <p className="text-slate-500 text-sm mt-2">Access all staff logs and export data to CSV in the next version.</p>
-        </div> :
-        <AttendanceCalendar logs={attendance.filter(a => a.employeeId === user.id)} />
-      )}
-
-      {activeTab === 'leave' && (
-        user.role === 'admin' ? 
-        <AdminLeaves requests={leaveRequests} onAction={(id, status) => {
-          const updated = leaveRequests.map(r => r.id === id ? {...r, status} : r);
-          handleUpdateAndPush(employees, attendance, updated);
-        }} /> :
-        <LeaveTracker user={user} requests={leaveRequests.filter(l => l.employeeId === user.id)} onRequest={req => handleUpdateAndPush(employees, attendance, [...leaveRequests, {...req, id: Math.random().toString(), employeeId: user.id, employeeName: user.name, status: 'pending', appliedDate: new Date().toISOString()} as LeaveRequest])} />
-      )}
-
+      {activeTab === 'attendance' && <AttendanceCalendar logs={attendance.filter(a => a.employeeId === user.id)} />}
+      {activeTab === 'leave' && <LeaveTracker user={user} requests={leaveRequests.filter(l => l.employeeId === user.id)} onRequest={req => setLeaveRequests([...leaveRequests, {...req, id: Math.random().toString(), employeeId: user.id, employeeName: user.name, status: 'pending', appliedDate: new Date().toISOString()} as LeaveRequest])} />}
       {activeTab === 'assistant' && <Assistant user={user} attendance={attendance} />}
-      
-      {isAddingEmployee && <AddEmployeeModal onSave={emp => handleUpdateAndPush([...employees, emp], attendance, leaveRequests)} onCancel={() => setIsAddingEmployee(false)} />}
-      {editingEmployee && <EditEmployeeModal employee={editingEmployee} onSave={emp => handleUpdateAndPush(employees.map(e => e.id === emp.id ? emp : e), attendance, leaveRequests)} onCancel={() => setEditingEmployee(null)} />}
+
+      {/* Sync Code Modal */}
+      {showSyncModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8 animate-in zoom-in duration-300">
+            <h3 className="text-2xl font-black mb-6 text-slate-800">Your Sync Code</h3>
+            <p className="text-sm text-slate-500 mb-6 leading-relaxed">Copy this code and paste it on your Chrome tab's setup screen to sync all your employees.</p>
+            
+            <div className="relative mb-6 group">
+              <textarea 
+                readOnly
+                className="w-full h-48 p-5 bg-slate-50 border border-slate-200 rounded-3xl outline-none text-[10px] font-mono leading-tight custom-scrollbar"
+                value={generatedCode || ''}
+              />
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(generatedCode || '');
+                  setCopySuccess(true);
+                  setTimeout(() => setCopySuccess(false), 2000);
+                }}
+                className={`absolute bottom-4 right-4 p-4 rounded-2xl shadow-xl transition-all ${copySuccess ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+              >
+                {copySuccess ? <ClipboardCheck size={20} /> : <Copy size={20} />}
+              </button>
+            </div>
+            
+            <button 
+              onClick={() => setShowSyncModal(false)}
+              className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </Layout>
-  );
-};
-
-// --- Modals ---
-const AddEmployeeModal: React.FC<{onSave: (emp: User) => void, onCancel: () => void}> = ({ onSave, onCancel }) => {
-  const [data, setData] = useState({ id: '', name: '', email: '', role: 'employee' as UserRole, designation: '', department: '' });
-  return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8 animate-in zoom-in duration-200">
-        <h3 className="text-xl font-bold mb-6 flex items-center space-x-2">
-          <Plus className="text-indigo-600" />
-          <span>New Staff Entry</span>
-        </h3>
-        <form onSubmit={e => { e.preventDefault(); onSave({...data, leaveBalance: { sick: 10, casual: 10, vacation: 15 }}); }} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <input required placeholder="EMP ID" className="p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none" value={data.id} onChange={e => setData({...data, id: e.target.value.toUpperCase()})} />
-            <input required placeholder="Department" className="p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
-          </div>
-          <input required placeholder="Full Legal Name" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
-          <input required type="email" placeholder="Work Email" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={data.email} onChange={e => setData({...data, email: e.target.value})} />
-          <div className="flex space-x-3 pt-4">
-            <button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold shadow-lg active:scale-95 transition-all">Add Staff</button>
-            <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 p-4 rounded-2xl font-bold text-slate-500">Cancel</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-const EditEmployeeModal: React.FC<{employee: User, onSave: (emp: User) => void, onCancel: () => void}> = ({ employee, onSave, onCancel }) => {
-  const [data, setData] = useState<User>({ ...employee });
-  return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8 animate-in zoom-in duration-200">
-        <h3 className="text-xl font-bold mb-6">Staff Profile Edit</h3>
-        <form onSubmit={e => { e.preventDefault(); onSave(data); }} className="space-y-4">
-          <input required placeholder="Name" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
-          <input required placeholder="Department" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
-          <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100">
-             <p className="text-[10px] font-black text-indigo-400 uppercase mb-4 flex items-center space-x-1">
-               <CalendarCheck2 size={12} />
-               <span>Available Leaves</span>
-             </p>
-             <div className="grid grid-cols-3 gap-3">
-               <div className="space-y-1">
-                 <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Sick</label>
-                 <input type="number" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-center" value={data.leaveBalance.sick} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, sick: parseInt(e.target.value)||0}})}/>
-               </div>
-               <div className="space-y-1">
-                 <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Casual</label>
-                 <input type="number" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-center" value={data.leaveBalance.casual} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, casual: parseInt(e.target.value)||0}})}/>
-               </div>
-               <div className="space-y-1">
-                 <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Vaca</label>
-                 <input type="number" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-center" value={data.leaveBalance.vacation} onChange={e => setData({...data, leaveBalance: {...data.leaveBalance, vacation: parseInt(e.target.value)||0}})}/>
-               </div>
-             </div>
-          </div>
-          <div className="flex space-x-3 pt-4">
-            <button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold shadow-lg active:scale-95 transition-all">Update</button>
-            <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 p-4 rounded-2xl font-bold text-slate-500">Cancel</button>
-          </div>
-        </form>
-      </div>
-    </div>
   );
 };
 

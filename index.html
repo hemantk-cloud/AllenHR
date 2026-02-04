@@ -40,7 +40,7 @@
           padding: 0;
         }
         #root:empty::before {
-          content: 'Initializing AllenHR Cloud...';
+          content: 'Initializing AllenHR...';
           display: flex;
           align-items: center;
           justify-content: center;
@@ -51,6 +51,9 @@
           font-size: 1.1rem;
         }
         .mirror { transform: scaleX(-1); }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
     </style>
 <script type="importmap">
 {

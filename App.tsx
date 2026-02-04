@@ -423,25 +423,6 @@ const App: React.FC = () => {
         return <LeaveTracker user={user} requests={leaveRequests.filter(l => l.employeeId === user.id)} onRequest={(req) => setLeaveRequests([...leaveRequests, { ...req, id: Math.random().toString(), employeeId: user.id, employeeName: user.name, status: 'pending', appliedDate: new Date().toISOString() } as LeaveRequest])} />;
       case 'assistant':
         return <Assistant user={user} attendance={attendance.filter(a => a.employeeId === user.id)} />;
-      case 'profile':
-        return (
-          <div className="space-y-6 max-w-2xl mx-auto">
-            <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm text-center">
-               <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=4f46e5&color=fff`} className="w-32 h-32 rounded-full mx-auto mb-6 shadow-xl" alt="Profile" />
-               <h2 className="text-2xl font-bold text-slate-800">{user.name}</h2>
-               <p className="text-indigo-600 font-medium">{user.designation}</p>
-               <div className="mt-8 flex flex-col space-y-3">
-                 <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-between">
-                    <div className="text-left"><p className="text-xs font-bold text-indigo-400 uppercase">Status</p><p className="text-sm text-indigo-900 font-bold">Session Persistent</p></div>
-                    <Save size={20} className="text-indigo-300" />
-                 </div>
-                 {showInstallBanner && (
-                   <button onClick={handleInstallClick} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center space-x-2 transition-all shadow-lg"><Download size={20} /><span>Download App</span></button>
-                 )}
-               </div>
-            </div>
-          </div>
-        );
       default: return <Dashboard attendance={[]} leaveRequests={[]} />;
     }
   };

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { MapPin, Clock, ArrowRightCircle, ArrowLeftCircle, Loader2, ShieldCheck, ShieldAlert, Camera } from 'lucide-react';
 import { CameraCapture } from './CameraCapture';
@@ -71,14 +70,20 @@ export const PunchCard: React.FC<PunchCardProps> = ({ isPunchedIn, onPunch, isLo
 
   const handlePunchClick = () => {
     if (!isWithinRange) {
+      // Trigger short error haptic
+      if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
       alert("You are not within the office premises. Punch in/out is only allowed at One Biz Square.");
       return;
     }
+    // Success haptic
+    if ('vibrate' in navigator) navigator.vibrate(50);
     setShowCamera(true);
   };
 
   const handleCapture = (selfie: string) => {
     setShowCamera(false);
+    // Double vibrate on final confirmation
+    if ('vibrate' in navigator) navigator.vibrate([50, 30, 50]);
     onPunch(location!, selfie);
   };
 

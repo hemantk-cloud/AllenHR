@@ -16,12 +16,9 @@ import {
   Trash2, 
   AlertTriangle, 
   ShieldAlert,
-  Settings2,
-  Download,
-  Smartphone,
-  Save,
   Hash,
-  Briefcase
+  Briefcase,
+  CalendarCheck2
 } from 'lucide-react';
 
 const STORAGE_KEYS = {
@@ -108,8 +105,6 @@ const App: React.FC = () => {
   const [editingEmployee, setEditingEmployee] = useState<User | null>(null);
   const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(null);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
 
   // Sync Logic
   useEffect(() => {
@@ -131,14 +126,6 @@ const App: React.FC = () => {
       localStorage.removeItem(STORAGE_KEYS.USER);
     }
   }, [user]);
-
-  useEffect(() => {
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallBanner(true);
-    });
-  }, []);
 
   useEffect(() => {
     if (user) {
@@ -164,16 +151,6 @@ const App: React.FC = () => {
     setUser(null);
     setLoginEmail('');
     setIsPunchedIn(false);
-  };
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-      setShowInstallBanner(false);
-    }
   };
 
   const handlePunch = async (location: { lat: number; lng: number }, selfie: string) => {
@@ -310,7 +287,6 @@ const App: React.FC = () => {
               <LogIn size={20} />
               <span>Verify Identity</span>
             </button>
-            <p className="text-[10px] text-center text-slate-400">Your session will be remembered on this device.</p>
           </form>
         </div>
       </div>
@@ -351,7 +327,7 @@ const App: React.FC = () => {
                         <td className="px-4 py-4 text-sm font-medium">{emp.department}</td>
                         <td className="px-4 py-4 text-center">
                           <div className="flex items-center justify-center space-x-2">
-                            <button onClick={() => setEditingEmployee(emp)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Edit Staff Details"><Edit2 size={16}/></button>
+                            <button onClick={() => setEditingEmployee(emp)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Edit Staff & Leave Allotment"><Edit2 size={16}/></button>
                             <button onClick={() => setDeletingEmployeeId(emp.id)} className="p-2 text-slate-400 hover:text-rose-600" disabled={emp.id === user.id} title="Delete Staff"><Trash2 size={16}/></button>
                           </div>
                         </td>
@@ -437,12 +413,28 @@ const App: React.FC = () => {
 };
 
 const AddEmployeeModal: React.FC<{onSave: (emp: User) => void, onCancel: () => void}> = ({ onSave, onCancel }) => {
-  const [data, setData] = useState({ id: '', name: '', email: '', role: 'employee' as UserRole, designation: '', department: '' });
+  const [data, setData] = useState({ 
+    id: '', 
+    name: '', 
+    email: '', 
+    role: 'employee' as UserRole, 
+    designation: '', 
+    department: '',
+    sick: 10,
+    casual: 10,
+    vacation: 15
+  });
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200 overflow-y-auto">
+      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8 my-8">
         <h3 className="text-xl font-bold mb-6 text-slate-800">Register New Staff</h3>
-        <form onSubmit={(e) => { e.preventDefault(); onSave({...data, leaveBalance: { sick: 10, casual: 10, vacation: 15 }}); }} className="space-y-4">
+        <form onSubmit={(e) => { 
+          e.preventDefault(); 
+          onSave({
+            ...data, 
+            leaveBalance: { sick: data.sick, casual: data.casual, vacation: data.vacation }
+          } as any); 
+        }} className="space-y-4">
           <div className="relative">
             <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input required placeholder="Employee ID (e.g., EMP501)" className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={data.id} onChange={e => setData({...data, id: e.target.value.toUpperCase()})} />
@@ -453,6 +445,16 @@ const AddEmployeeModal: React.FC<{onSave: (emp: User) => void, onCancel: () => v
              <input required placeholder="Designation" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" value={data.designation} onChange={e => setData({...data, designation: e.target.value})} />
              <input required placeholder="Department" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
           </div>
+          
+          <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
+             <p className="text-[10px] font-bold text-indigo-400 uppercase mb-3 flex items-center space-x-1"><CalendarCheck2 size={12}/> <span>Initial Leave Allotment</span></p>
+             <div className="grid grid-cols-3 gap-2">
+               <div><label className="text-[9px] text-slate-400 font-bold uppercase ml-1">Sick</label><input type="number" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" value={data.sick} onChange={e => setData({...data, sick: parseInt(e.target.value) || 0})}/></div>
+               <div><label className="text-[9px] text-slate-400 font-bold uppercase ml-1">Casual</label><input type="number" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" value={data.casual} onChange={e => setData({...data, casual: parseInt(e.target.value) || 0})}/></div>
+               <div><label className="text-[9px] text-slate-400 font-bold uppercase ml-1">Vaca</label><input type="number" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" value={data.vacation} onChange={e => setData({...data, vacation: parseInt(e.target.value) || 0})}/></div>
+             </div>
+          </div>
+
           <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700" value={data.role} onChange={e => setData({...data, role: e.target.value as UserRole})}>
             <option value="employee">Staff Access</option>
             <option value="admin">Administrator</option>
@@ -469,9 +471,20 @@ const AddEmployeeModal: React.FC<{onSave: (emp: User) => void, onCancel: () => v
 
 const EditEmployeeModal: React.FC<{employee: User, onSave: (emp: User) => void, onCancel: () => void}> = ({ employee, onSave, onCancel }) => {
   const [data, setData] = useState<User>({ ...employee });
+  
+  const updateBalance = (type: keyof User['leaveBalance'], val: string) => {
+    setData({
+      ...data,
+      leaveBalance: {
+        ...data.leaveBalance,
+        [type]: parseInt(val) || 0
+      }
+    });
+  };
+
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200 overflow-y-auto">
+      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8 my-8">
         <h3 className="text-xl font-bold mb-6 text-slate-800">Edit Staff Record</h3>
         <form onSubmit={(e) => { e.preventDefault(); onSave(data); }} className="space-y-4">
           <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-between mb-4">
@@ -489,6 +502,26 @@ const EditEmployeeModal: React.FC<{employee: User, onSave: (emp: User) => void, 
                <input required placeholder="Department" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" value={data.department} onChange={e => setData({...data, department: e.target.value})} />
              </div>
           </div>
+
+          <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100">
+             <p className="text-[10px] font-bold text-indigo-400 uppercase mb-4 flex items-center space-x-1"><CalendarCheck2 size={12}/> <span>Manage Allotment</span></p>
+             <div className="grid grid-cols-3 gap-3">
+               <div>
+                 <label className="text-[10px] text-slate-500 font-bold uppercase ml-1">Sick</label>
+                 <input type="number" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800" value={data.leaveBalance.sick} onChange={e => updateBalance('sick', e.target.value)}/>
+               </div>
+               <div>
+                 <label className="text-[10px] text-slate-500 font-bold uppercase ml-1">Casual</label>
+                 <input type="number" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800" value={data.leaveBalance.casual} onChange={e => updateBalance('casual', e.target.value)}/>
+               </div>
+               <div>
+                 <label className="text-[10px] text-slate-500 font-bold uppercase ml-1">Vaca</label>
+                 <input type="number" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800" value={data.leaveBalance.vacation} onChange={e => updateBalance('vacation', e.target.value)}/>
+               </div>
+             </div>
+             <p className="mt-3 text-[10px] text-slate-400 italic">Changing these values directly updates the employee's current remaining balance.</p>
+          </div>
+
           <div className="flex space-x-3 pt-2">
             <button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">Update Record</button>
             <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 text-slate-600 p-4 rounded-2xl font-bold hover:bg-slate-200 transition-all">Cancel</button>
